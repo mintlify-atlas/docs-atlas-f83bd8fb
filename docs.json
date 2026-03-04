@@ -63,9 +63,11 @@
             "group": "Endpoints",
             "pages": [
               "api/overview",
+              "api/health",
               "api/analyze",
               "api/get-analysis",
-              "api/list-analyses"
+              "api/list-analyses",
+              "api/report-pdf"
             ]
           },
           {

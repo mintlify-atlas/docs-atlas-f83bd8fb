@@ -1,0 +1,96 @@
+---
+title: Generate PDF report
+description: Generate a PDF report from markdown content
+---
+
+Generate a downloadable PDF report from markdown content. This endpoint is used by the frontend to create formatted technical or executive reports after analysis.
+
+## Endpoint
+
+```
+POST /report/pdf
+```
+
+## Request body
+
+<ParamField path="report_type" type="string" required>
+  Type of report to generate. Must be either `"technical"` or `"executive"`.
+</ParamField>
+
+<ParamField path="repo_url" type="string" required>
+  GitHub repository URL for the report header.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  Report body content in markdown format.
+</ParamField>
+
+<ParamField path="model_used" type="string | null">
+  Name of the AI model used for analysis. Optional, displayed in the report header.
+</ParamField>
+
+## Response
+
+Returns a PDF file as binary data with `application/pdf` content type.
+
+**Headers:**
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="technical_report.pdf"` or `"executive_report.pdf"`
+
+## Example request
+
+```bash cURL
+curl -X POST "https://api.neutrino.example.com/report/pdf" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "report_type": "technical",
+    "repo_url": "https://github.com/owner/repo",
+    "content": "# Technical Analysis\n\n## Overview\n\nThis repository...",
+    "model_used": "deepseek-r1t-chimera"
+  }' \
+  --output technical_report.pdf
+```
+
+## Example request (executive)
+
+```bash cURL
+curl -X POST "https://api.neutrino.example.com/report/pdf" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "report_type": "executive",
+    "repo_url": "https://github.com/owner/repo",
+    "content": "# Executive Summary\n\n## Strategic Overview\n\nThe codebase demonstrates...",
+    "model_used": "deepseek-r1t-chimera"
+  }' \
+  --output executive_report.pdf
+```
+
+## Error responses
+
+### 400 Bad Request
+
+Returned when `report_type` is not `"technical"` or `"executive"`.
+
+```json
+{
+  "detail": "report_type must be 'technical' or 'executive'"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when PDF generation fails.
+
+```json
+{
+  "detail": "PDF generation failed: [error details]"
+}
+```
+
+## Usage notes
+
+- The endpoint uses ReportLab to convert markdown to PDF format
+- PDF generation runs in a background thread to avoid blocking the event loop
+- The generated PDF includes a header with the repository URL and timestamp
+- Markdown formatting is preserved in the PDF output
+- Large reports may take several seconds to generate

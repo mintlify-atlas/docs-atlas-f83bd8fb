@@ -88,10 +88,11 @@
     "Supabase database integration"
   ],
   "publicApiSurface": [
+    "GET /health - API health check",
     "POST /analyze - Analyze a GitHub repository",
     "GET /analysis/{id} - Get stored analysis by ID",
     "GET /analyses - List recent analyses",
-    "GET /health - API health check",
+    "POST /report/pdf - Generate PDF report from markdown content",
     "AnalysisOrchestrator.analyze() - Main orchestration entry point",
     "GitHubClient.get_repo_metadata() - Fetch repository metadata",
     "OpenRouterClient.complete() - LLM completion with multi-key rotation",

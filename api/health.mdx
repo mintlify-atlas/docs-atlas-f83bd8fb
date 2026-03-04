@@ -1,0 +1,46 @@
+---
+title: Health check
+description: Check API health status
+---
+
+Check the health and availability of the Neutrino API.
+
+## Endpoint
+
+```
+GET /health
+```
+
+## Response
+
+Returns the current health status of the API and its version.
+
+<ResponseField name="status" type="string" required>
+  Health status of the API. Always returns `"healthy"` when the API is operational.
+</ResponseField>
+
+<ResponseField name="version" type="string" required>
+  API version string (e.g., `"0.1.0"`).
+</ResponseField>
+
+## Example request
+
+```bash cURL
+curl https://api.neutrino.example.com/health
+```
+
+## Example response
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+## Usage notes
+
+- This endpoint requires no authentication
+- Use it for health monitoring and uptime checks
+- A 200 response indicates the API is operational
+- Does not verify database connectivity or external service availability
