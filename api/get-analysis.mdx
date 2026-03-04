@@ -1,0 +1,309 @@
+---
+title: Get analysis
+description: Retrieve a stored analysis by ID
+---
+
+## GET /analysis/{id}
+
+Retrieve a previously completed analysis by its unique identifier.
+
+This endpoint returns the complete analysis record stored in the database, including all structured data, summaries, and metadata.
+
+## Request
+
+<ParamField path="id" type="string" required>
+  UUID of the analysis to retrieve.
+  
+  Example: `123e4567-e89b-12d3-a456-426614174000`
+</ParamField>
+
+### Request example
+
+```bash
+curl https://api.neutrino.example.com/analysis/123e4567-e89b-12d3-a456-426614174000
+```
+
+## Response
+
+Status code: `200 OK`
+
+Returns an `AnalysisRecord` object containing the complete analysis data.
+
+<ResponseField name="id" type="string" required>
+  UUID of the analysis record.
+</ResponseField>
+
+<ResponseField name="repo_url" type="string" required>
+  GitHub repository URL that was analyzed.
+</ResponseField>
+
+<ResponseField name="repo_name" type="string" required>
+  Repository name (e.g., `owner/repo`).
+</ResponseField>
+
+<ResponseField name="analyzed_at" type="string" required>
+  ISO 8601 timestamp of when the analysis was performed.
+</ResponseField>
+
+<ResponseField name="model_used" type="string" required>
+  AI model used for the analysis (e.g., `claude-3-5-sonnet-20241022`).
+</ResponseField>
+
+<ResponseField name="tech_stack" type="object" required>
+  Technology stack detection results.
+  
+  **Properties:**
+  - `languages` (string[]): Programming languages detected
+  - `frameworks` (string[]): Frameworks identified
+  - `databases` (string[]): Database systems found
+  - `tools` (string[]): Development tools detected
+  - `package_managers` (string[]): Package managers used
+  - `versions` (object): Version numbers for key dependencies
+</ResponseField>
+
+<ResponseField name="architecture_patterns" type="array" required>
+  Architecture patterns identified in the codebase.
+  
+  Each pattern contains:
+  - `pattern_name` (string): Name of the pattern
+  - `confidence` (number): Confidence score between 0 and 1
+  - `evidence` (string[]): Supporting evidence
+  - `description` (string): Pattern description
+</ResponseField>
+
+<ResponseField name="risks_and_gaps" type="array" required>
+  Identified risks and gaps.
+  
+  Each risk contains:
+  - `category` (string): Risk category (security, maintainability, scalability)
+  - `severity` (string): Severity level (low, medium, high, critical)
+  - `title` (string): Brief title
+  - `description` (string): Detailed description
+  - `impact` (string): Business/technical impact
+  - `recommendation` (string): Suggested remediation
+</ResponseField>
+
+<ResponseField name="recommendations" type="array" required>
+  Forward-looking recommendations.
+  
+  Each recommendation contains:
+  - `category` (string): Category (architecture, tooling, process)
+  - `priority` (string): Priority level (low, medium, high)
+  - `title` (string): Brief title
+  - `description` (string): Detailed description
+  - `effort_estimate` (string): Effort required (small, medium, large)
+  - `business_impact` (string): Expected business impact
+  - `technical_steps` (string[]): Implementation steps
+</ResponseField>
+
+<ResponseField name="features" type="array" required>
+  User-facing features detected in the codebase.
+  
+  Each feature contains:
+  - `name` (string): Feature name
+  - `description` (string): Feature description
+  - `endpoints` (string[]): API endpoints related to this feature
+  - `integrations` (string[]): Third-party integrations
+  - `user_journey_stage` (string): Stage in user journey
+</ResponseField>
+
+<ResponseField name="business_model" type="object">
+  Business model analysis results.
+  
+  **Properties:**
+  - `auth_type` (string): Authentication mechanism
+  - `auth_providers` (string[]): Auth providers used
+  - `payment_integrations` (string[]): Payment systems integrated
+  - `monetization_type` (string): Revenue model type
+  - `monetization_signals` (string[]): Signals of monetization approach
+  - `growth_mechanisms` (string[]): Growth strategies identified
+  - `revenue_drivers` (string[]): Key revenue drivers
+  - `user_tiers` (string[]): User tier structure
+</ResponseField>
+
+<ResponseField name="integrations" type="array" required>
+  External integrations detected.
+  
+  Each integration contains:
+  - `name` (string): Integration name
+  - `category` (string): Category (cloud, payment, auth, monitoring)
+  - `detected_from` (string): How it was detected
+  - `description` (string): Integration description
+  - `cost_tier` (string): Estimated cost tier
+</ResponseField>
+
+<ResponseField name="technical_summary" type="string" required>
+  Comprehensive technical analysis in markdown format.
+</ResponseField>
+
+<ResponseField name="executive_summary" type="string" required>
+  Executive-level summary in markdown format.
+</ResponseField>
+
+<ResponseField name="analysis_duration_ms" type="number">
+  Total analysis duration in milliseconds.
+</ResponseField>
+
+<ResponseField name="file_count" type="number">
+  Total number of files in the repository.
+</ResponseField>
+
+<ResponseField name="files_analyzed" type="number">
+  Number of files actually analyzed (content fetched).
+</ResponseField>
+
+<ResponseField name="token_usage" type="object">
+  Token usage statistics by phase.
+</ResponseField>
+
+<ResponseField name="timeline" type="object">
+  Phase-level timing information.
+</ResponseField>
+
+<ResponseField name="trend_data" type="object">
+  Technology trend intelligence context used during analysis.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 timestamp of when the record was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO 8601 timestamp of when the record was last updated.
+</ResponseField>
+
+### Response example
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "repo_url": "https://github.com/octocat/Hello-World",
+  "repo_name": "octocat/Hello-World",
+  "analyzed_at": "2026-03-04T10:00:00Z",
+  "model_used": "claude-3-5-sonnet-20241022",
+  "tech_stack": {
+    "languages": ["Python", "TypeScript"],
+    "frameworks": ["FastAPI", "React"],
+    "databases": ["PostgreSQL"],
+    "tools": ["Docker", "pytest"],
+    "package_managers": ["poetry", "npm"],
+    "versions": {
+      "python": "3.11",
+      "node": "20.x"
+    }
+  },
+  "architecture_patterns": [
+    {
+      "pattern_name": "Microservices",
+      "confidence": 0.85,
+      "evidence": [
+        "Multiple service directories",
+        "Docker compose configuration",
+        "API gateway pattern"
+      ],
+      "description": "Service-oriented architecture with clear boundaries"
+    }
+  ],
+  "risks_and_gaps": [
+    {
+      "category": "security",
+      "severity": "medium",
+      "title": "Missing rate limiting",
+      "description": "API endpoints lack rate limiting middleware",
+      "impact": "Potential for abuse and DoS attacks",
+      "recommendation": "Implement rate limiting using slowapi or similar"
+    }
+  ],
+  "recommendations": [
+    {
+      "category": "architecture",
+      "priority": "high",
+      "title": "Add caching layer",
+      "description": "Implement Redis caching for frequently accessed data",
+      "effort_estimate": "medium",
+      "business_impact": "Improved response times and reduced database load",
+      "technical_steps": [
+        "Add Redis to infrastructure",
+        "Implement cache middleware",
+        "Add cache invalidation logic"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "name": "Repository Analysis",
+      "description": "Analyze GitHub repositories and generate insights",
+      "endpoints": ["/analyze", "/analysis/{id}"],
+      "integrations": ["GitHub API", "OpenAI"],
+      "user_journey_stage": "core"
+    }
+  ],
+  "business_model": {
+    "auth_type": "token_based",
+    "auth_providers": ["GitHub"],
+    "payment_integrations": [],
+    "monetization_type": "freemium",
+    "monetization_signals": ["Usage-based pricing signals"],
+    "growth_mechanisms": ["API access", "Developer tools"],
+    "revenue_drivers": ["API calls", "Premium features"],
+    "user_tiers": ["free", "pro", "enterprise"]
+  },
+  "integrations": [
+    {
+      "name": "Supabase",
+      "category": "cloud",
+      "detected_from": "Environment variables and SDK usage",
+      "description": "PostgreSQL database and authentication",
+      "cost_tier": "medium"
+    }
+  ],
+  "technical_summary": "# Technical Analysis\n\n## Overview\n...",
+  "executive_summary": "# Executive Summary\n\n## Strategic Assessment\n...",
+  "analysis_duration_ms": 90000,
+  "file_count": 342,
+  "files_analyzed": 156,
+  "token_usage": {
+    "total": 45000,
+    "analysis": 35000,
+    "summarization": 10000
+  },
+  "timeline": {
+    "phases": {
+      "code_fetch": {
+        "duration_ms": 15000
+      },
+      "analysis": {
+        "duration_ms": 75000
+      }
+    }
+  },
+  "trend_data": {
+    "frameworks": ["FastAPI", "React"],
+    "patterns": ["microservices"]
+  },
+  "created_at": "2026-03-04T10:01:30Z",
+  "updated_at": "2026-03-04T10:01:30Z"
+}
+```
+
+## Error responses
+
+### 404 Not Found
+
+Returned when the analysis ID does not exist:
+
+```json
+{
+  "detail": "Analysis 123e4567-e89b-12d3-a456-426614174000 not found"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when there is a database error:
+
+```json
+{
+  "detail": "Failed to fetch analysis: Database connection error"
+}
+```

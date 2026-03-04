@@ -1,0 +1,232 @@
+---
+title: Environment variables
+description: Configure required and optional environment variables for Neutrino
+---
+
+## Overview
+
+Neutrino uses environment variables for all configuration. Variables are loaded via Pydantic with strict validation to ensure the application fails fast if required settings are missing.
+
+## Required variables
+
+These variables must be set for Neutrino to start:
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  Your Supabase project URL. Must be a valid HTTPS URL.
+  
+  Example: `https://your-project.supabase.co`
+</ParamField>
+
+<ParamField path="SUPABASE_SERVICE_ROLE_KEY" type="string" required>
+  Supabase service role key for backend operations. This is a secret key that should never be exposed to the frontend.
+  
+  Find this in: Supabase Dashboard → Settings → API → service_role key
+</ParamField>
+
+<ParamField path="OPENROUTER_API_KEY_1" type="string" required>
+  Primary OpenRouter API key for LLM access. Must be at least 10 characters.
+  
+  Get your key at: [openrouter.ai](https://openrouter.ai)
+</ParamField>
+
+## Optional variables
+
+### Multi-key rotation setup
+
+Neutrino supports up to 4 OpenRouter API keys for automatic rotation and fallback:
+
+<ParamField path="OPENROUTER_API_KEY_2" type="string">
+  Secondary OpenRouter API key for rotation.
+</ParamField>
+
+<ParamField path="OPENROUTER_API_KEY_3" type="string">
+  Tertiary OpenRouter API key for rotation.
+</ParamField>
+
+<ParamField path="OPENROUTER_API_KEY_4" type="string">
+  Quaternary OpenRouter API key for rotation.
+</ParamField>
+
+The LLM client automatically cycles through available keys to distribute load and handle rate limits.
+
+### OpenRouter configuration
+
+<ParamField path="OPENROUTER_BASE_URL" type="string" default="https://openrouter.ai/api/v1">
+  OpenRouter API base URL. Change this only if using a proxy or custom endpoint.
+</ParamField>
+
+### Search and trends
+
+<ParamField path="SERPER_API_KEY" type="string">
+  Serper API key for web search in trend analysis. Optional but highly recommended for trend features.
+  
+  Get your key at: [serper.dev](https://serper.dev)
+</ParamField>
+
+<ParamField path="GITHUB_TOKEN" type="string">
+  GitHub personal access token for accessing private repositories and higher rate limits. Optional for public repo analysis.
+  
+  Create a token at: GitHub → Settings → Developer settings → Personal access tokens
+</ParamField>
+
+### Application settings
+
+<ParamField path="APP_NAME" type="string" default="AI Development Advisor">
+  Application name used in logging and reports.
+</ParamField>
+
+<ParamField path="DEBUG" type="boolean" default="false">
+  Enable debug mode for verbose logging. Set to `true` or `1` to enable.
+</ParamField>
+
+## Environment file
+
+Create a `.env` file in the `backend` directory:
+
+```bash backend/.env
+# Required: Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+
+# Required: OpenRouter (at least one key)
+OPENROUTER_API_KEY_1=sk-or-v1-your-primary-key
+OPENROUTER_API_KEY_2=sk-or-v1-your-secondary-key
+OPENROUTER_API_KEY_3=sk-or-v1-your-tertiary-key
+OPENROUTER_API_KEY_4=sk-or-v1-your-quaternary-key
+
+# Optional: Search and trends
+SERPER_API_KEY=your-serper-key-here
+GITHUB_TOKEN=ghp_your-github-token
+
+# Optional: Application settings
+APP_NAME=AI Development Advisor
+DEBUG=false
+```
+
+## Production deployment
+
+### Render
+
+When deploying to Render, configure environment variables in the dashboard:
+
+1. Go to your service → Environment
+2. Add each variable as a secret (use "Add Secret File" for `.env`)
+3. Variables are automatically loaded by the application
+
+The `render.yaml` file specifies which variables are required:
+
+```yaml backend/render.yaml
+envVars:
+  - key: SUPABASE_URL
+    sync: false
+  - key: SUPABASE_SERVICE_ROLE_KEY
+    sync: false
+  - key: OPENROUTER_API_KEY_1
+    sync: false
+  - key: OPENROUTER_API_KEY_2
+    sync: false
+  - key: OPENROUTER_API_KEY_3
+    sync: false
+  - key: OPENROUTER_API_KEY_4
+    sync: false
+  - key: SERPER_API_KEY
+    sync: false
+  - key: GITHUB_TOKEN
+    sync: false
+```
+
+### Vercel
+
+When deploying to Vercel, configure environment variables in the dashboard:
+
+1. Go to your project → Settings → Environment Variables
+2. Add each variable (select Production, Preview, or Development)
+3. Variables are automatically injected at build and runtime
+
+## Security best practices
+
+<Warning>
+  Never commit `.env` files to version control. Add `.env` to your `.gitignore`.
+</Warning>
+
+<Warning>
+  Use `SUPABASE_SERVICE_ROLE_KEY` only in backend code. This key bypasses Row Level Security and should never be exposed to the frontend.
+</Warning>
+
+### Key rotation
+
+The multi-key rotation setup provides several benefits:
+
+1. **Rate limit handling**: Automatically switch to another key if one hits rate limits
+2. **High availability**: Continue operation even if one key is revoked
+3. **Load distribution**: Spread usage across multiple keys
+4. **Zero-downtime rotation**: Add new keys and remove old ones without downtime
+
+Keys are accessed via the `openrouter_api_keys` property:
+
+```python backend/src/advisor/config/settings.py
+@property
+def openrouter_api_keys(self) -> list[str]:
+    """Get list of all available OpenRouter API keys.
+
+    Returns:
+        List of non-None API keys for rotation/fallback.
+    """
+    keys = [
+        self.openrouter_api_key_1,
+        self.openrouter_api_key_2,
+        self.openrouter_api_key_3,
+        self.openrouter_api_key_4,
+    ]
+    return [k for k in keys if k is not None]
+```
+
+## Validation
+
+All environment variables are validated on application startup:
+
+### URL validation
+
+```python backend/src/advisor/config/settings.py
+@field_validator("supabase_url")
+@classmethod
+def validate_supabase_url(cls, v: str) -> str:
+    """Ensure Supabase URL is properly formatted."""
+    if not v or not v.startswith("https://"):
+        raise ValueError("SUPABASE_URL must be a valid HTTPS URL")
+    return v.rstrip("/")
+```
+
+### Key validation
+
+```python backend/src/advisor/config/settings.py
+@field_validator("supabase_service_role_key", "openrouter_api_key_1")
+@classmethod
+def validate_required_keys(cls, v: str) -> str:
+    """Ensure required API keys are not empty."""
+    if not v or len(v.strip()) < 10:
+        raise ValueError("Required API key is missing or too short")
+    return v.strip()
+```
+
+If validation fails, the application will exit immediately with a detailed error message.
+
+## Accessing settings
+
+Use the `get_settings()` function to access configuration throughout the application:
+
+```python
+from advisor.config.settings import get_settings
+
+settings = get_settings()
+
+# Access individual settings
+print(settings.supabase_url)
+print(settings.debug)
+
+# Access all API keys for rotation
+for key in settings.openrouter_api_keys:
+    print(f"Key available: {key[:10]}...")
+```
+
+Settings are cached using `@lru_cache` and loaded only once per application lifetime.

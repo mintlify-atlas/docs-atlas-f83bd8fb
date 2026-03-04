@@ -1,0 +1,74 @@
+---
+title: API overview
+description: Introduction to the Neutrino API endpoints for repository analysis
+---
+
+The Neutrino API provides programmatic access to AI-powered codebase analysis. Analyze GitHub repositories and retrieve technical insights for engineers and strategic guidance for non-technical leaders.
+
+## Base URL
+
+```
+https://api.neutrino.example.com
+```
+
+## Available endpoints
+
+The API provides the following endpoints:
+
+### System endpoints
+
+- `GET /health` - Check API health status
+
+### Analysis endpoints
+
+- `POST /analyze` - Analyze a GitHub repository
+- `GET /analysis/{id}` - Retrieve a stored analysis by ID
+- `GET /analyses` - List recent analyses
+
+### Report endpoints
+
+- `POST /report/pdf` - Generate a PDF report from markdown content
+- `POST /analysis/{id}/report` - Generate PDF report for an analysis (not yet implemented)
+
+## Authentication
+
+Most endpoints do not require authentication. However, when analyzing private GitHub repositories, you must provide a GitHub personal access token in the request body:
+
+```json
+{
+  "repo_url": "https://github.com/owner/private-repo",
+  "access_token": "ghp_your_token_here"
+}
+```
+
+**Important**: Access tokens are used ephemerally for repository access and are never stored by the API.
+
+## Rate limiting
+
+The API currently does not enforce rate limiting, but this may change in production. GitHub API rate limits apply when fetching repository data:
+
+- **Unauthenticated requests**: 60 requests per hour per IP
+- **Authenticated requests**: 5,000 requests per hour per token
+
+## Response format
+
+All responses use JSON format. Successful responses return the requested data, while errors return a standard error structure:
+
+```json
+{
+  "detail": "Error message describing what went wrong"
+}
+```
+
+## CORS
+
+The API supports Cross-Origin Resource Sharing (CORS) to enable browser-based clients. In production, this is restricted to specific origins.
+
+## Status codes
+
+- `200 OK` - Request succeeded
+- `202 Accepted` - Analysis request accepted and completed
+- `400 Bad Request` - Invalid request parameters
+- `404 Not Found` - Resource not found
+- `500 Internal Server Error` - Server error
+- `502 Bad Gateway` - GitHub API error

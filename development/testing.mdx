@@ -1,0 +1,453 @@
+---
+title: Testing
+description: Comprehensive guide to the Neutrino test suite and testing practices
+---
+
+## Test suite overview
+
+Neutrino includes a comprehensive test suite with **60 tests** covering both unit and integration testing:
+
+- **49 unit tests** - Fast, isolated tests with no network calls
+- **11 integration tests** - End-to-end tests using real GitHub repositories and LLM calls
+
+All tests use **pytest** with async support via `pytest-asyncio`.
+
+## Running tests
+
+### Quick start
+
+```bash
+cd backend
+
+# Run all tests
+uv run pytest tests/ -v
+
+# Run only unit tests (fast)
+uv run pytest tests/ --ignore=tests/test_integration.py -v
+
+# Run only integration tests
+uv run pytest tests/test_integration.py -v -s
+
+# Run with coverage report
+uv run pytest tests/ --cov=advisor --cov-report=html
+```
+
+<Tip>
+  Use the `--ignore` flag to skip integration tests during rapid development cycles since they make real API calls.
+</Tip>
+
+### Test configuration
+
+The test suite is configured in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+```
+
+## Unit tests vs integration tests
+
+### Unit tests
+
+Unit tests are **fast, isolated, and deterministic**. They use mocks and fixtures to avoid external dependencies.
+
+<CardGroup cols={2}>
+  <Card title="Characteristics" icon="bolt">
+    - No network calls
+    - Use mock objects
+    - Test single units of code
+    - Run in milliseconds
+  </Card>
+
+  <Card title="Coverage" icon="list-check">
+    - GitHub client parsing
+    - Stack detection logic
+    - Architecture analysis
+    - Risk analysis
+    - Recommendation engine
+  </Card>
+</CardGroup>
+
+**Example unit test structure:**
+
+```python
+from advisor.github.parser import RepositoryParser
+
+def test_parse_file_tree(sample_file_tree):
+    """Test file tree parsing with mock data."""
+    structure = RepositoryParser.parse_file_tree(sample_file_tree)
+    
+    assert structure.total_files > 0
+    assert len(structure.code_files) > 0
+    assert len(structure.config_files) > 0
+```
+
+### Integration tests
+
+Integration tests validate the **complete analysis flow** using real external services.
+
+<CardGroup cols={2}>
+  <Card title="Characteristics" icon="network-wired">
+    - Real GitHub API calls
+    - Real LLM completions
+    - Full orchestrator flow
+    - Slower execution (45-60s)
+  </Card>
+
+  <Card title="Test repository" icon="github">
+    Uses `AstralKS/LSTM_FROM_SCRATCH` as a known test case
+  </Card>
+</CardGroup>
+
+**Example integration test:**
+
+```python
+import pytest
+from advisor.analysis.orchestrator import AnalysisOrchestrator
+
+TEST_REPO_URL = "https://github.com/AstralKS/LSTM_FROM_SCRATCH"
+
+@pytest.mark.asyncio
+async def test_full_analysis():
+    """Test complete analysis flow."""
+    orchestrator = AnalysisOrchestrator()
+    result = await orchestrator.analyze(TEST_REPO_URL)
+    
+    assert result.repo_url == TEST_REPO_URL
+    assert result.tech_stack is not None
+    assert result.technical_summary is not None
+    assert result.executive_summary is not None
+```
+
+<Warning>
+  Integration tests require valid API credentials in your `.env` file:
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+  - `OPENROUTER_API_KEY_1`
+  - `SERPER_API_KEY`
+</Warning>
+
+## Test file organization
+
+The test suite is organized by component:
+
+```
+backend/tests/
+├── __init__.py
+├── conftest.py                    # Shared fixtures and mocks
+├── test_api.py                    # FastAPI endpoint tests
+├── test_github.py                 # GitHub client tests
+├── test_parser.py                 # File tree parsing tests
+├── test_analysis.py               # Core analysis logic
+├── test_architecture.py           # Architecture detection
+├── test_risks.py                  # Risk analysis tests
+├── test_recommendations.py        # Recommendation engine
+├── test_llm.py                    # LLM client tests
+├── test_orchestrator.py           # Orchestrator tests
+├── test_trends_pipeline.py        # Trend intelligence tests
+├── test_integration.py            # Full integration tests
+└── verify_trends_optimization.py  # Performance verification
+```
+
+## Shared test fixtures
+
+The `conftest.py` file provides reusable test fixtures:
+
+<AccordionGroup>
+  <Accordion title="mock_settings">
+    Mock settings for testing:
+
+    ```python
+    @pytest.fixture
+    def mock_settings():
+        settings = MagicMock()
+        settings.supabase_url = "https://test.supabase.co"
+        settings.supabase_service_role_key = "test-key"
+        settings.openrouter_api_keys = ["test-key-1", "test-key-2"]
+        return settings
+    ```
+  </Accordion>
+
+  <Accordion title="sample_file_tree">
+    Sample GitHub file tree for testing:
+
+    ```python
+    @pytest.fixture
+    def sample_file_tree():
+        return [
+            {"path": "README.md", "type": "blob", "size": 1024},
+            {"path": "package.json", "type": "blob", "size": 500},
+            {"path": "src/index.ts", "type": "blob", "size": 2048},
+            # ... more files
+        ]
+    ```
+  </Accordion>
+
+  <Accordion title="mock_github_client">
+    Mock GitHub client with async methods:
+
+    ```python
+    @pytest.fixture
+    def mock_github_client():
+        client = MagicMock()
+        client.get_repo_metadata = AsyncMock(
+            return_value={
+                "name": "test-repo",
+                "owner": {"login": "test-owner"},
+                "default_branch": "main",
+            }
+        )
+        return client
+    ```
+  </Accordion>
+
+  <Accordion title="mock_llm_client">
+    Mock LLM client for testing:
+
+    ```python
+    @pytest.fixture
+    def mock_llm_client():
+        client = MagicMock()
+        client.complete = AsyncMock(
+            return_value={
+                "content": "Sample analysis summary.",
+                "model": "test-model",
+                "usage": {"total_tokens": 100},
+            }
+        )
+        return client
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Test coverage
+
+### Generating coverage reports
+
+Generate HTML coverage reports to identify untested code:
+
+```bash
+# Run tests with coverage
+uv run pytest tests/ --cov=advisor --cov-report=html
+
+# Open the report
+open htmlcov/index.html
+```
+
+The coverage report shows:
+- **Line coverage** for each module
+- **Untested code** highlighted in red
+- **Branch coverage** for conditional logic
+
+### Coverage goals
+
+<Steps>
+  <Step title="Maintain current coverage">
+    New code should not decrease overall coverage percentage.
+  </Step>
+
+  <Step title="Test critical paths">
+    Focus on high-impact code:
+    - API endpoints
+    - Data validation
+    - Analysis orchestration
+    - Error handling
+  </Step>
+
+  <Step title="Test edge cases">
+    Include tests for:
+    - Empty inputs
+    - Invalid data
+    - Network failures
+    - Rate limiting
+  </Step>
+</Steps>
+
+## Writing new tests
+
+### Unit test template
+
+```python
+import pytest
+from advisor.module import YourClass
+
+def test_your_function(mock_settings):
+    """Test description following docstring format."""
+    # Arrange
+    instance = YourClass(mock_settings)
+    test_input = {"key": "value"}
+    
+    # Act
+    result = instance.process(test_input)
+    
+    # Assert
+    assert result is not None
+    assert result["key"] == "expected_value"
+```
+
+### Async test template
+
+```python
+import pytest
+from advisor.module import AsyncClass
+
+@pytest.mark.asyncio
+async def test_async_function(mock_github_client):
+    """Test async operations."""
+    instance = AsyncClass(mock_github_client)
+    
+    result = await instance.fetch_data("owner", "repo")
+    
+    assert result is not None
+    mock_github_client.get_repo_metadata.assert_called_once()
+```
+
+### Integration test guidelines
+
+<Steps>
+  <Step title="Use real test repository">
+    Use `AstralKS/LSTM_FROM_SCRATCH` for consistency:
+
+    ```python
+    TEST_REPO_URL = "https://github.com/AstralKS/LSTM_FROM_SCRATCH"
+    TEST_OWNER = "AstralKS"
+    TEST_REPO = "LSTM_FROM_SCRATCH"
+    ```
+  </Step>
+
+  <Step title="Verify all components">
+    Integration tests should verify:
+    - GitHub metadata fetching
+    - File tree parsing
+    - Content retrieval
+    - Stack detection
+    - LLM analysis
+    - Database storage
+  </Step>
+
+  <Step title="Check timing and performance">
+    Verify performance metrics:
+
+    ```python
+    assert result.analysis_duration_ms is not None
+    assert result.analysis_duration_ms < 120000  # Under 2 minutes
+    ```
+  </Step>
+</Steps>
+
+## Running specific tests
+
+### By file
+
+```bash
+# Run tests in a specific file
+uv run pytest tests/test_github.py -v
+```
+
+### By test name
+
+```bash
+# Run a specific test function
+uv run pytest tests/test_github.py::test_parse_repo_url -v
+```
+
+### By marker
+
+```bash
+# Run all integration tests
+uv run pytest -m integration -v
+```
+
+### With output
+
+```bash
+# Show print statements during tests
+uv run pytest tests/ -v -s
+```
+
+## Continuous integration
+
+Tests run automatically on:
+
+- **Pull requests** - All unit tests must pass
+- **Main branch** - Full test suite including integration tests
+- **Pre-commit** - Linting and formatting checks
+
+<Note>
+  Pull requests cannot be merged unless all tests pass and code coverage is maintained.
+</Note>
+
+## Debugging failing tests
+
+### Verbose output
+
+```bash
+# Show full traceback
+uv run pytest tests/test_api.py -vv
+
+# Show local variables in traceback
+uv run pytest tests/test_api.py -l
+```
+
+### Stop on first failure
+
+```bash
+# Exit immediately on first failure
+uv run pytest tests/ -x
+
+# Exit after N failures
+uv run pytest tests/ --maxfail=3
+```
+
+### Run last failed tests
+
+```bash
+# Re-run only tests that failed last time
+uv run pytest tests/ --lf
+```
+
+## Performance testing
+
+The `verify_trends_optimization.py` script validates performance improvements:
+
+```bash
+# Run performance verification
+uv run python tests/verify_trends_optimization.py
+```
+
+This verifies:
+- Parallel RAG lookups
+- Shared HTTP client performance
+- Trend collection timing
+- API call latency
+
+<Tip>
+  Typical analysis time should be **45-60 seconds** for a medium-sized repository.
+</Tip>
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Test isolation" icon="cube">
+    Each test should be independent and not rely on other tests.
+  </Card>
+
+  <Card title="Clear naming" icon="tag">
+    Use descriptive test names that explain what is being tested.
+  </Card>
+
+  <Card title="Arrange-Act-Assert" icon="list">
+    Follow the AAA pattern for clear test structure.
+  </Card>
+
+  <Card title="Mock external calls" icon="plug">
+    Mock all external API calls in unit tests.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<Card title="Code structure" icon="folder-tree" href="/development/code-structure">
+  Learn about the project architecture and module organization
+</Card>

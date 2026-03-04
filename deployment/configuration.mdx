@@ -1,0 +1,179 @@
+---
+title: Configuration
+description: Configure Neutrino settings using Pydantic with environment validation
+---
+
+## Settings module
+
+Neutrino uses Pydantic for centralized configuration management with environment variable loading and validation. The settings are defined in `backend/src/advisor/config/settings.py`.
+
+## Settings class
+
+The `Settings` class provides type-safe configuration with fail-fast validation:
+
+```python backend/src/advisor/config/settings.py
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables.
+
+    All secrets are loaded at runtime and never stored or logged.
+    Missing required variables cause immediate startup failure.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+```
+
+## Configuration options
+
+### Supabase configuration
+
+<ParamField path="supabase_url" type="str" required>
+  Supabase project URL. Must be a valid HTTPS URL.
+</ParamField>
+
+<ParamField path="supabase_service_role_key" type="str" required>
+  Supabase service role key for backend operations. Must be at least 10 characters.
+</ParamField>
+
+### OpenRouter API keys
+
+Supports up to 4 API keys for rotation and fallback:
+
+<ParamField path="openrouter_api_key_1" type="str" required>
+  Primary OpenRouter API key. Must be at least 10 characters.
+</ParamField>
+
+<ParamField path="openrouter_api_key_2" type="str | None">
+  Secondary OpenRouter API key for rotation.
+</ParamField>
+
+<ParamField path="openrouter_api_key_3" type="str | None">
+  Tertiary OpenRouter API key for rotation.
+</ParamField>
+
+<ParamField path="openrouter_api_key_4" type="str | None">
+  Quaternary OpenRouter API key for rotation.
+</ParamField>
+
+<ParamField path="openrouter_base_url" type="str" default="https://openrouter.ai/api/v1">
+  OpenRouter API base URL.
+</ParamField>
+
+### Search configuration
+
+<ParamField path="serper_api_key" type="str | None">
+  Serper API key for web search in trend analysis. Optional but recommended for trend features.
+</ParamField>
+
+### Application configuration
+
+<ParamField path="app_name" type="str" default="AI Development Advisor">
+  Application name for logging and reports.
+</ParamField>
+
+<ParamField path="debug" type="bool" default="false">
+  Enable debug mode for verbose logging.
+</ParamField>
+
+## Validation rules
+
+### Supabase URL validation
+
+The `supabase_url` field must:
+- Start with `https://`
+- Be non-empty
+- Trailing slashes are automatically removed
+
+```python backend/src/advisor/config/settings.py
+@field_validator("supabase_url")
+@classmethod
+def validate_supabase_url(cls, v: str) -> str:
+    """Ensure Supabase URL is properly formatted."""
+    if not v or not v.startswith("https://"):
+        raise ValueError("SUPABASE_URL must be a valid HTTPS URL")
+    return v.rstrip("/")
+```
+
+### Required API keys validation
+
+Required API keys (`supabase_service_role_key` and `openrouter_api_key_1`) must:
+- Be non-empty
+- Be at least 10 characters long
+- Whitespace is automatically stripped
+
+```python backend/src/advisor/config/settings.py
+@field_validator("supabase_service_role_key", "openrouter_api_key_1")
+@classmethod
+def validate_required_keys(cls, v: str) -> str:
+    """Ensure required API keys are not empty."""
+    if not v or len(v.strip()) < 10:
+        raise ValueError("Required API key is missing or too short")
+    return v.strip()
+```
+
+## Properties
+
+### OpenRouter API keys list
+
+Get all configured OpenRouter API keys for rotation:
+
+```python backend/src/advisor/config/settings.py
+@property
+def openrouter_api_keys(self) -> list[str]:
+    """Get list of all available OpenRouter API keys.
+
+    Returns:
+        List of non-None API keys for rotation/fallback.
+    """
+    keys = [
+        self.openrouter_api_key_1,
+        self.openrouter_api_key_2,
+        self.openrouter_api_key_3,
+        self.openrouter_api_key_4,
+    ]
+    return [k for k in keys if k is not None]
+```
+
+### Project root
+
+Get the project root directory:
+
+```python backend/src/advisor/config/settings.py
+@property
+def project_root(self) -> Path:
+    """Get project root directory."""
+    return Path(__file__).parent.parent.parent.parent
+```
+
+## Usage
+
+Access settings throughout the application using the cached `get_settings()` function:
+
+```python
+from advisor.config.settings import get_settings
+
+settings = get_settings()
+print(settings.supabase_url)
+print(settings.openrouter_api_keys)  # List of all configured keys
+```
+
+The settings are loaded once and cached using `@lru_cache` for the application lifetime.
+
+## Error handling
+
+If required environment variables are missing or invalid, the application will fail immediately on startup with a `ValidationError`:
+
+```python
+from pydantic import ValidationError
+
+try:
+    settings = get_settings()
+except ValidationError as e:
+    print(f"Configuration error: {e}")
+```
+
+This fail-fast behavior ensures that configuration issues are caught early before the application starts processing requests.

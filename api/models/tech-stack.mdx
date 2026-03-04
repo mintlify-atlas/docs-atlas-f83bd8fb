@@ -1,0 +1,76 @@
+---
+title: Tech stack info
+description: Technology stack detection results
+---
+
+The `TechStackInfo` model represents the detected technology stack for a repository, including languages, frameworks, databases, tools, and version information.
+
+## Fields
+
+<ResponseField name="languages" type="list[string]">
+  Programming languages detected in the codebase. Defaults to an empty list.
+  
+  ```json
+  ["Python", "TypeScript", "JavaScript"]
+  ```
+</ResponseField>
+
+<ResponseField name="frameworks" type="list[string]">
+  Frameworks and libraries used in the project. Defaults to an empty list.
+  
+  ```json
+  ["FastAPI", "React", "Next.js"]
+  ```
+</ResponseField>
+
+<ResponseField name="databases" type="list[string]">
+  Database systems identified in the codebase. Defaults to an empty list.
+  
+  ```json
+  ["PostgreSQL", "Redis"]
+  ```
+</ResponseField>
+
+<ResponseField name="tools" type="list[string]">
+  Development and build tools detected. Defaults to an empty list.
+  
+  ```json
+  ["Docker", "GitHub Actions", "pytest"]
+  ```
+</ResponseField>
+
+<ResponseField name="package_managers" type="list[string]">
+  Package managers in use. Defaults to an empty list.
+  
+  ```json
+  ["npm", "pip", "poetry"]
+  ```
+</ResponseField>
+
+<ResponseField name="versions" type="dict[string, string]">
+  Version information for detected technologies. The key is the technology name and the value is the version string. Defaults to an empty dictionary.
+  
+  ```json
+  {
+    "Python": "3.11",
+    "Node.js": "20.x",
+    "PostgreSQL": "15"
+  }
+  ```
+</ResponseField>
+
+## Example
+
+```json
+{
+  "languages": ["Python", "TypeScript"],
+  "frameworks": ["FastAPI", "React"],
+  "databases": ["PostgreSQL"],
+  "tools": ["Docker", "pytest"],
+  "package_managers": ["pip", "npm"],
+  "versions": {
+    "Python": "3.11",
+    "Node.js": "20.x"
+  }
+}
+```

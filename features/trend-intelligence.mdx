@@ -1,0 +1,507 @@
+---
+title: Trend intelligence
+description: Real-time technology trend analysis through multi-source search, signal extraction, and LLM synthesis with pgvector caching
+---
+
+The trend intelligence system enriches code analysis with real-time data from Google Search, GitHub, and Hacker News. It uses an agentic pipeline with RAG caching to provide context about technology momentum, risks, and opportunities.
+
+## Pipeline architecture
+
+The `TrendPipeline` orchestrates a 7-step agentic workflow:
+
+<Steps>
+  <Step title="RAG cache check">
+    Query Supabase pgvector for recent insights (7-day window)
+  </Step>
+  
+  <Step title="Query planning">
+    Generate sub-queries optimized for each data source
+  </Step>
+  
+  <Step title="Parallel multi-source search">
+    Execute searches across Serper, GitHub, and Hacker News concurrently
+  </Step>
+  
+  <Step title="Signal extraction">
+    Parse results to extract version numbers, momentum indicators, and risk signals
+  </Step>
+  
+  <Step title="Ranking and deduplication">
+    Score results by relevance and remove duplicates
+  </Step>
+  
+  <Step title="LLM synthesis">
+    Use GPT-4 to synthesize findings into actionable insights
+  </Step>
+  
+  <Step title="RAG cache storage">
+    Store results in pgvector for future queries
+  </Step>
+</Steps>
+
+From backend/src/advisor/trends/pipeline.py:1-14:
+
+```python
+"""
+Wires together:
+1. RAG cache check
+2. Query planning (multi-query generation)
+3. Parallel multi-source search
+4. Signal extraction
+5. Ranking & deduplication
+6. LLM synthesis
+7. RAG cache storage
+"""
+```
+
+## Data collection
+
+The system collects trend data from three sources simultaneously.
+
+### Multi-source search
+
+From backend/src/advisor/trends/search_sources.py:29-66:
+
+```python
+async def search_all(
+    serper_queries: list[str],
+    github_queries: list[str],
+    hn_queries: list[str],
+    timeout: float = 30.0,
+) -> list[SearchResult]:
+    """Run all source searches in parallel and merge results."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        tasks = [
+            _search_serper_batch(client, serper_queries),
+            _search_github_batch(client, github_queries),
+            _search_hn_batch(client, hn_queries),
+        ]
+        results = await asyncio.gather(
+            *tasks,
+            return_exceptions=True,
+        )
+    
+    # Merge and return all results
+    all_results = []
+    for result in results:
+        if not isinstance(result, Exception):
+            all_results.extend(result)
+    
+    return all_results
+```
+
+<CardGroup cols={3}>
+  <Card title="Serper (Google)" icon="google">
+    Web search for official docs, blog posts, and announcements
+    
+    Rate limit: 3 concurrent requests, 0.3s stagger
+  </Card>
+
+  <Card title="GitHub API" icon="github">
+    Repository search for popular projects and activity
+    
+    Sort by stars, limit 5 results per query
+  </Card>
+
+  <Card title="Hacker News" icon="y-combinator">
+    Community discussions via Algolia API
+    
+    Filter by story type, score by points
+  </Card>
+</CardGroup>
+
+### Serper integration
+
+Searches Google via the Serper API (backend/src/advisor/trends/search_sources.py:105-138):
+
+```python
+async def _search_serper_single(
+    client: httpx.AsyncClient,
+    query: str,
+    api_key: str,
+) -> list[SearchResult]:
+    """Execute a single Serper search query."""
+    resp = await client.post(
+        "https://google.serper.dev/search",
+        headers={
+            "X-API-KEY": api_key,
+            "Content-Type": "application/json",
+        },
+        json={"q": query, "num": 5},
+    )
+    
+    data = resp.json()
+    results = []
+    
+    for item in data.get("organic", [])[:5]:
+        results.append(SearchResult(
+            title=item.get("title", ""),
+            snippet=item.get("snippet", ""),
+            url=item.get("link", ""),
+            source=SourceType.SERPER,
+            score=item.get("position", 0),
+        ))
+    
+    return results
+```
+
+<Note>
+Requires `SERPER_API_KEY` environment variable. Get a free API key at [serper.dev](https://serper.dev).
+</Note>
+
+### GitHub repository search
+
+Finds popular repositories using the GitHub Search API (backend/src/advisor/trends/search_sources.py:176-207):
+
+```python
+async def _search_github_repos(
+    client: httpx.AsyncClient,
+    query: str,
+) -> list[SearchResult]:
+    """Search GitHub repositories."""
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    github_token = os.getenv("GITHUB_TOKEN")
+    if github_token:
+        headers["Authorization"] = f"Bearer {github_token}"
+    
+    resp = await client.get(
+        "https://api.github.com/search/repositories",
+        params={
+            "q": query,
+            "sort": "stars",
+            "order": "desc",
+            "per_page": 5,
+        },
+        headers=headers,
+    )
+    
+    items = resp.json().get("items", [])
+    results = []
+    
+    for repo in items:
+        results.append(SearchResult(
+            title=repo.get("full_name", ""),
+            snippet=repo.get("description", ""),
+            url=repo.get("html_url", ""),
+            source=SourceType.GITHUB_SEARCH,
+            score=repo.get("stargazers_count", 0),
+            raw_data={
+                "stars": repo.get("stargazers_count", 0),
+                "forks": repo.get("forks_count", 0),
+                "language": repo.get("language", ""),
+                "topics": repo.get("topics", [])[:5],
+            },
+        ))
+    
+    return results
+```
+
+### Hacker News search
+
+Searches discussions via the Algolia API (backend/src/advisor/trends/search_sources.py:255-296):
+
+```python
+async def _search_hn_single(
+    client: httpx.AsyncClient,
+    query: str,
+) -> list[SearchResult]:
+    """Search HN via Algolia API."""
+    resp = await client.get(
+        "https://hn.algolia.com/api/v1/search",
+        params={
+            "query": query,
+            "tags": "story",
+            "hitsPerPage": 10,
+        },
+    )
+    
+    hits = resp.json().get("hits", [])
+    results = []
+    
+    for hit in hits[:5]:
+        hn_url = (
+            hit.get("url", "")
+            or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
+        )
+        results.append(SearchResult(
+            title=hit.get("title", ""),
+            snippet="",
+            url=hn_url,
+            source=SourceType.HACKER_NEWS,
+            score=hit.get("points", 0) or 0,
+            published_at=hit.get("created_at", "")[:10],
+            raw_data={
+                "objectID": hit.get("objectID", ""),
+                "num_comments": hit.get("num_comments", 0),
+                "author": hit.get("author", ""),
+            },
+        ))
+    
+    return results
+```
+
+## Signal extraction and ranking
+
+The `content_extractor` module parses search results to extract actionable signals:
+
+<Tabs>
+  <Tab title="Version signals">
+    Extracts version numbers from titles, snippets, and URLs:
+    - Latest stable releases
+    - Beta/RC versions
+    - Deprecation notices
+  </Tab>
+
+  <Tab title="Momentum signals">
+    Identifies adoption trends:
+    - GitHub stars and forks
+    - HN discussion points
+    - Recent blog posts
+  </Tab>
+
+  <Tab title="Risk signals">
+    Detects potential issues:
+    - Breaking changes
+    - Security vulnerabilities
+    - End-of-life announcements
+  </Tab>
+
+  <Tab title="Opportunity signals">
+    Finds improvements:
+    - New features
+    - Performance upgrades
+    - Migration paths
+  </Tab>
+</Tabs>
+
+The `ranker` module scores results using:
+
+```python
+def rank_results(
+    results: list[SearchResult],
+    signals: dict,
+    tag: str,
+) -> list[SearchResult]:
+    """Score and sort results by relevance."""
+    for result in results:
+        score = 0
+        
+        # Source weight
+        if result.source == SourceType.GITHUB_SEARCH:
+            score += result.score * 0.1  # GitHub stars
+        elif result.source == SourceType.HACKER_NEWS:
+            score += result.score * 2  # HN points
+        
+        # Recency boost
+        if result.published_at:
+            days_old = (datetime.now() - parse_date(result.published_at)).days
+            if days_old < 30:
+                score += 10
+        
+        # Tag relevance
+        if tag.lower() in result.title.lower():
+            score += 5
+        
+        result.score = score
+    
+    return sorted(results, key=lambda r: r.score, reverse=True)
+```
+
+## LLM synthesis
+
+The `synthesizer` uses an LLM to generate structured insights from ranked results:
+
+```python
+async def synthesize(
+    tag: str,
+    ranked_results: list[SearchResult],
+    signals: dict,
+    llm_client: OpenRouterClient,
+) -> TrendInsight:
+    """Generate TrendInsight from search results."""
+    
+    # Build context from top results
+    context = build_context(ranked_results[:15], signals)
+    
+    prompt = f"""
+Analyze these search results for '{tag}' and extract:
+- Key points (3-5 bullets)
+- Momentum (growing/stable/declining)
+- Direction (trends and predictions)
+- Risks (3 max)
+- Opportunities (3 max)
+- Latest version (if applicable)
+
+{context}
+"""
+    
+    response = await llm_client.complete(
+        prompt=prompt,
+        system_prompt="You are a technology analyst. Extract actionable insights.",
+        temperature=0.2,
+    )
+    
+    # Parse LLM response into structured TrendInsight
+    return parse_insight(response["content"], tag, ranked_results)
+```
+
+## Cache integration with RAG
+
+The system uses Supabase pgvector for intelligent caching. See [RAG system](/features/rag-system) for implementation details.
+
+### Cache-first workflow
+
+From backend/src/advisor/analysis/core/orchestrator.py:296-330:
+
+```python
+# Step 1: Parallel RAG cache check for all tags
+cache_results = await asyncio.gather(
+    *[
+        rag.get_recent_for_tag(tag, days=TREND_CACHE_MAX_DAYS)
+        for tag in tags
+    ],
+    return_exceptions=True,
+)
+
+cached_insights = []
+uncached_tags = []
+
+for tag, result in zip(tags, cache_results):
+    if result is not None:
+        cached_insights.append(format_insight(tag, result, "cached"))
+        logger.info(f"RAG cache hit for '{tag}'")
+    else:
+        uncached_tags.append(tag)
+
+# Step 2: Fresh search for uncached tags
+if uncached_tags:
+    fresh_insights = await collect_fresh_data(uncached_tags)
+    cached_insights.extend(fresh_insights)
+```
+
+<Warning>
+Cache TTL is 7 days. After expiration, the system automatically triggers fresh data collection.
+</Warning>
+
+## Batch processing
+
+Analyze multiple technologies in parallel with concurrency control:
+
+```python
+pipeline = TrendPipeline()
+
+tags = ["react", "django", "postgresql", "docker", "kubernetes"]
+
+# Process up to 2 tags at a time
+results = await pipeline.run_batch(
+    tags=tags,
+    force_refresh=False,  # Use cache when available
+    max_concurrent=2,     # Rate limit protection
+)
+
+for tag, insight in results.items():
+    print(f"\n{tag}:")
+    print(f"  Momentum: {insight.momentum}")
+    print(f"  Key Points: {', '.join(insight.key_points)}")
+    print(f"  Latest Version: {insight.latest_version}")
+```
+
+From backend/src/advisor/trends/pipeline.py:148-183:
+
+```python
+async def run_batch(
+    self,
+    tags: list[str],
+    force_refresh: bool = True,
+    max_concurrent: int = 1,
+) -> dict[str, TrendInsight]:
+    """Run pipeline for multiple tags in parallel.
+    
+    Uses a semaphore to cap concurrency and avoid API rate limits.
+    """
+    sem = asyncio.Semaphore(max_concurrent)
+    
+    async def _analyze_one(tag: str) -> tuple[str, TrendInsight | None]:
+        async with sem:
+            try:
+                insight = await self.analyze_tag(
+                    tag,
+                    force_refresh=force_refresh,
+                )
+                return (tag, insight)
+            except Exception as e:
+                logger.error(f"Pipeline failed for '{tag}': {e}")
+                return (tag, None)
+    
+    pairs = await asyncio.gather(
+        *[_analyze_one(t) for t in tags],
+    )
+    return {tag: ins for tag, ins in pairs if ins is not None}
+```
+
+## Integration with analysis
+
+Trend data is automatically enriched during code analysis:
+
+```python
+# Extract tech stack from code
+tech_stack = extract_tech_stack(file_contents)
+tags = ["react", "fastapi", "postgresql"]  # From tech_stack
+
+# Enrich with trend intelligence
+trend_context = await enrich_with_trends(tech_stack)
+
+# Send to AI agents
+deep_result = await deep_reviewer.review(
+    repo_name="owner/repo",
+    file_contents=file_contents,
+    trend_context=trend_context,  # Injected here
+)
+
+# Trend data appears in reports
+print(deep_result.aggregated_technical)
+# "React 18.2.0 is 2 versions behind the latest 18.3.1 (released March 2024).
+#  Consider upgrading for performance improvements..."
+```
+
+## API reference
+
+### TrendPipeline
+
+```python
+from advisor.trends.pipeline import TrendPipeline
+
+pipeline = TrendPipeline()
+
+# Single tag analysis
+insight = await pipeline.analyze_tag("react")
+print(insight.key_points)
+print(insight.momentum)  # "growing" | "stable" | "declining"
+print(insight.latest_version)
+
+# Batch analysis
+results = await pipeline.run_batch(
+    tags=["django", "fastapi", "flask"],
+    max_concurrent=2,
+)
+
+# Query historical data
+history = await pipeline.query_trends("typescript")
+```
+
+### TrendInsight model
+
+```python
+class TrendInsight(BaseModel):
+    id: str
+    tag: str
+    key_points: list[str]
+    momentum: str  # "growing" | "stable" | "declining"
+    direction: str
+    risks: list[str]
+    opportunities: list[str]
+    latest_version: str | None
+    version_info: str | None
+    sources: list[SearchResult]
+    collected_at: datetime
+```

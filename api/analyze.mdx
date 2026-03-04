@@ -1,0 +1,187 @@
+---
+title: Analyze repository
+description: Analyze a GitHub repository and receive technical and executive summaries
+---
+
+## POST /analyze
+
+Analyze a GitHub repository and receive comprehensive technical and executive summaries.
+
+This endpoint accepts a repository URL and optional access token for private repos, then performs a full analysis including:
+
+- Technology stack detection
+- Architecture pattern identification
+- Risk and gap analysis
+- Strategic recommendations
+- Business model insights
+
+The analysis typically takes 30-90 seconds depending on repository size.
+
+## Request
+
+<ParamField body="repo_url" type="string" required>
+  GitHub repository URL to analyze.
+  
+  Example: `https://github.com/owner/repo`
+</ParamField>
+
+<ParamField body="access_token" type="string">
+  GitHub personal access token for private repositories. The token is used ephemerally and never stored.
+  
+  Required only for private repositories.
+</ParamField>
+
+### Request example
+
+```bash
+curl -X POST https://api.neutrino.example.com/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/octocat/Hello-World"
+  }'
+```
+
+For private repositories:
+
+```bash
+curl -X POST https://api.neutrino.example.com/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/myorg/private-repo",
+    "access_token": "ghp_your_token_here"
+  }'
+```
+
+## Response
+
+Status code: `202 Accepted`
+
+<ResponseField name="success" type="boolean" required>
+  Whether the analysis completed successfully.
+</ResponseField>
+
+<ResponseField name="analysis_id" type="string">
+  UUID of the stored analysis record. Can be used to retrieve the analysis later via `/analysis/{id}`.
+  
+  May be `null` if database storage failed.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable status message.
+</ResponseField>
+
+<ResponseField name="technical_summary" type="string">
+  Comprehensive technical analysis in markdown format, including:
+  - Technology stack and architecture
+  - Code quality assessment
+  - Security and scalability analysis
+  - Detailed recommendations
+</ResponseField>
+
+<ResponseField name="executive_summary" type="string">
+  Executive-level summary in markdown format, focused on:
+  - Business model and growth mechanisms
+  - Strategic opportunities
+  - Risk assessment
+  - Investment recommendations
+</ResponseField>
+
+<ResponseField name="repo_url" type="string">
+  The repository URL that was analyzed.
+</ResponseField>
+
+<ResponseField name="model_used" type="string">
+  The AI model used for analysis (e.g., `claude-3-5-sonnet-20241022`).
+</ResponseField>
+
+<ResponseField name="timeline" type="object">
+  Detailed timing information for each analysis phase, including:
+  - Phase durations
+  - API call timestamps
+  - Token usage per phase
+</ResponseField>
+
+<ResponseField name="api_call_timings" type="array">
+  Array of individual API call timing objects, each containing:
+  - `timestamp`: ISO 8601 timestamp
+  - `duration_ms`: Call duration in milliseconds
+  - `tokens`: Token usage for the call
+</ResponseField>
+
+<ResponseField name="trend_data" type="object">
+  Technology trend intelligence context used during analysis, including:
+  - Popular frameworks and tools
+  - Emerging patterns
+  - Best practices
+</ResponseField>
+
+### Response example
+
+```json
+{
+  "success": true,
+  "analysis_id": "123e4567-e89b-12d3-a456-426614174000",
+  "message": "Analysis completed successfully",
+  "technical_summary": "# Technical Analysis\n\n## Overview\nThis repository implements a modern web application...",
+  "executive_summary": "# Executive Summary\n\n## Strategic Assessment\nThe codebase demonstrates strong fundamentals...",
+  "repo_url": "https://github.com/octocat/Hello-World",
+  "model_used": "claude-3-5-sonnet-20241022",
+  "timeline": {
+    "phases": {
+      "code_fetch": {
+        "start": "2026-03-04T10:00:00Z",
+        "end": "2026-03-04T10:00:15Z",
+        "duration_ms": 15000
+      },
+      "analysis": {
+        "start": "2026-03-04T10:00:15Z",
+        "end": "2026-03-04T10:01:30Z",
+        "duration_ms": 75000
+      }
+    }
+  },
+  "api_call_timings": [
+    {
+      "timestamp": "2026-03-04T10:00:15Z",
+      "duration_ms": 2500,
+      "tokens": 1500
+    }
+  ],
+  "trend_data": {
+    "frameworks": ["Next.js", "React", "FastAPI"],
+    "patterns": ["serverless", "microservices"]
+  }
+}
+```
+
+## Error responses
+
+### 400 Bad Request
+
+Returned when the request parameters are invalid:
+
+```json
+{
+  "detail": "Invalid repository URL format"
+}
+```
+
+### 502 Bad Gateway
+
+Returned when the GitHub API returns an error:
+
+```json
+{
+  "detail": "GitHub API error: Repository not found"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when the analysis fails:
+
+```json
+{
+  "detail": "Analysis failed: Unable to process repository structure"
+}
+```

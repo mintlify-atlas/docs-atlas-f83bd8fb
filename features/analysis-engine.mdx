@@ -1,0 +1,384 @@
+---
+title: Analysis engine
+description: Multi-layered code analysis with parallel AI agents, tech stack detection, and architecture pattern recognition
+---
+
+The analysis engine is Neutrino's core intelligence system. It coordinates repository intake, parallel AI code review, and evidence-based report generation.
+
+## Architecture overview
+
+The analysis engine uses a three-phase pipeline:
+
+1. **GitHub intake** - Fetch up to 300 files with strategic prioritization
+2. **Deep AI review** - Parallel analysis with 3 specialized agents (backend, frontend, infrastructure)
+3. **Report aggregation** - Synthesis into technical and executive summaries
+
+<Note>
+The orchestrator in `backend/src/advisor/analysis/core/orchestrator.py:64-153` coordinates all analysis phases with timeline tracking.
+</Note>
+
+## Technology stack detection
+
+The `StackDetector` automatically identifies languages, frameworks, databases, and tools from repository files.
+
+### Detection methods
+
+**Language detection** (backend/src/advisor/analysis/detectors/stack_detector.py:111-124)
+
+Scans file extensions to identify programming languages:
+
+```python
+EXTENSION_LANGUAGE_MAP = {
+    ".py": "Python",
+    ".ts": "TypeScript",
+    ".js": "JavaScript",
+    ".tsx": "TypeScript (React)",
+    ".go": "Go",
+    ".rs": "Rust",
+    # ... 30+ languages supported
+}
+```
+
+**Framework detection** (backend/src/advisor/analysis/detectors/stack_detector.py:126-138)
+
+Searches package files for framework signatures:
+
+```python
+FRAMEWORK_PATTERNS = {
+    "package.json": {
+        "react": "React",
+        "next": "Next.js",
+        "angular": "Angular",
+        "nestjs": "NestJS",
+    },
+    "requirements.txt": {
+        "django": "Django",
+        "fastapi": "FastAPI",
+        "flask": "Flask",
+    },
+}
+```
+
+**Database detection** (backend/src/advisor/analysis/detectors/stack_detector.py:140-160)
+
+Searches all file contents for database keywords:
+
+```python
+db_patterns = {
+    "postgresql": "PostgreSQL",
+    "mongodb": "MongoDB",
+    "redis": "Redis",
+    "supabase": "Supabase (PostgreSQL)",
+    "elasticsearch": "Elasticsearch",
+}
+```
+
+### Version extraction
+
+The detector extracts version information from package files:
+
+```python
+# From package.json
+if "version" in pkg:
+    versions["project"] = pkg["version"]
+
+# Framework versions
+deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+for key in ["react", "vue", "angular", "next", "typescript"]:
+    if key in deps:
+        versions[key] = deps[key].lstrip("^~")
+```
+
+## Architecture pattern analysis
+
+The `ArchitectureAnalyzer` identifies structural patterns by analyzing directory organization.
+
+### Supported patterns
+
+From backend/src/advisor/analysis/analyzers/architecture.py:11-62:
+
+<AccordionGroup>
+  <Accordion title="Clean architecture">
+    Looks for: `domain/`, `usecases/`, `entities/`, `infrastructure/`, `adapters/`
+    
+    Description: Separation of concerns with domain-centric design
+  </Accordion>
+
+  <Accordion title="MVC (Model-View-Controller)">
+    Looks for: `models/`, `views/`, `controllers/`
+    
+    Description: Classic separation of data, presentation, and logic
+  </Accordion>
+
+  <Accordion title="Microservices">
+    Looks for: `services/`, `api-gateway/`, `shared/`
+    
+    Description: Distributed services architecture
+  </Accordion>
+
+  <Accordion title="Event-driven">
+    Looks for: `events/`, `handlers/`, `subscribers/`, `publishers/`
+    
+    Description: Communication via events and messages
+  </Accordion>
+
+  <Accordion title="Serverless">
+    Looks for: `functions/`, `lambda/`, `serverless.yml`
+    
+    Description: Function-as-a-Service deployment
+  </Accordion>
+</AccordionGroup>
+
+### Confidence scoring
+
+The analyzer calculates confidence based on pattern matches:
+
+```python
+for pattern in arch_info["patterns"]:
+    if pattern in directories:
+        evidence.append(f"Found '{pattern}' directory")
+        matches += 1
+
+# Confidence = matches / total_patterns
+confidence = min(matches / len(arch_info["patterns"]), 1.0)
+
+# Only report patterns with >= 30% confidence
+if confidence >= 0.3:
+    patterns.append(ArchitecturePattern(
+        pattern_name=arch_info["name"],
+        confidence=round(confidence, 2),
+        evidence=evidence,
+    ))
+```
+
+## Risk and gap analysis
+
+The `RiskAnalyzer` identifies technical debt, security concerns, and improvement opportunities.
+
+### Risk categories
+
+From backend/src/advisor/analysis/analyzers/risk_analyzer.py:11-79:
+
+<CardGroup cols={2}>
+  <Card title="Security risks" icon="shield-halved">
+    - Hardcoded secrets detection
+    - Outdated dependencies
+    - Missing security practices
+  </Card>
+
+  <Card title="Maintainability risks" icon="wrench">
+    - Missing test coverage
+    - No type safety
+    - Multi-language complexity
+  </Card>
+
+  <Card title="Practice gaps" icon="list-check">
+    - No CI/CD configuration
+    - Missing documentation
+    - No containerization
+  </Card>
+
+  <Card title="Stack-specific risks" icon="layer-group">
+    - Too many languages (>4)
+    - No recognized framework
+    - Deprecated dependencies
+  </Card>
+</CardGroup>
+
+### Detection logic
+
+Risks use both positive and inverted detection:
+
+```python
+# Positive detection (risk if FOUND)
+"hardcoded_secrets": {
+    "patterns": ["password=", "api_key=", "AWS_SECRET"],
+    "severity": "critical",
+    "invert": False,
+}
+
+# Inverted detection (risk if NOT found)
+"no_testing": {
+    "patterns": ["test", "spec", "pytest", "jest"],
+    "severity": "high",
+    "invert": True,  # Risk if patterns are missing
+}
+```
+
+## Parallel deep review agents
+
+The `DeepReviewOrchestrator` runs 3 parallel AI agents for comprehensive code analysis.
+
+### Smart chunking strategy
+
+From backend/src/advisor/analysis/core/deep_review.py:1-12:
+
+```python
+# Architecture:
+# 1. Fetch entire repo → optimize tokens
+# 2. Partition into frontend, backend, infra buckets
+# 3. Backend: send full logic + imports (priority)
+# 4. Frontend/Infra: send function names + imports only (lightweight)
+# 5. If frontend+infra < 60K tokens → single combined AI call
+# 6. Aggregate findings into evidence-based reports
+```
+
+### File partitioning
+
+Files are classified using pattern matching (backend/src/advisor/analysis/core/deep_review.py:37-55):
+
+<Tabs>
+  <Tab title="Backend patterns">
+    ```python
+    BACKEND_PATTERNS = [
+        "api/", "server/", "backend/", "src/advisor/",
+        "routes/", "controllers/", "services/", "models/",
+        "handlers/", "endpoints/", "main.py", "app.py",
+        "requirements.txt", "pyproject.toml", "go.mod",
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Frontend patterns">
+    ```python
+    FRONTEND_PATTERNS = [
+        "src/app", "src/pages", "src/components", "hooks/",
+        "app/", "pages/", "components/", "styles/",
+        ".tsx", ".jsx", ".vue", ".svelte",
+        "tailwind", "next.config", "vite.config",
+    ]
+    ```
+  </Tab>
+
+  <Tab title="Infrastructure patterns">
+    ```python
+    INFRA_PATTERNS = [
+        "docker", "kubernetes", "k8s", ".github/",
+        "terraform", "pulumi", "ansible", "helm",
+        ".env", "config/", "scripts/", "nginx",
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+### Token optimization
+
+The engine compresses files before AI analysis:
+
+```python
+optimizer = TokenOptimizer(
+    max_file_chars=15000,    # Truncate long files
+    max_total_chars=700000,  # Stay under 128K token limit
+)
+
+optimized, stats = optimizer.optimize(file_contents)
+logger.info(
+    f"Optimized: {stats.original_chars:,} -> {stats.compressed_chars:,} "
+    f"({stats.savings_percent:.1f}% saved)"
+)
+```
+
+### Parallel execution
+
+The orchestrator runs agents concurrently:
+
+```python
+# Option 1: Combined call (frontend + infra together)
+if combined_chars < COMBINED_THRESHOLD_CHARS:
+    results = await asyncio.gather(
+        analyze_chunk("backend", backend_prompt, backend_files),
+        analyze_chunk("frontend+infra", combined_prompt, all_files),
+        return_exceptions=True,
+    )
+
+# Option 2: Separate calls (3 parallel agents)
+else:
+    results = await asyncio.gather(
+        analyze_chunk("backend", backend_prompt, backend_files),
+        analyze_chunk("frontend", frontend_prompt, frontend_files),
+        analyze_chunk("infrastructure", infra_prompt, infra_files),
+        return_exceptions=True,
+    )
+```
+
+<Warning>
+The engine maximizes use of 128K context windows. Backend code gets full content, while frontend/infrastructure get function signatures only to stay within token limits.
+</Warning>
+
+## Timeline tracking
+
+Every analysis phase is tracked for observability:
+
+```python
+timeline = AnalysisTimeline()
+
+# Track phase execution
+timeline.start_phase("github_fetch")
+try:
+    structure, files = await fetch_repository(owner, repo)
+    timeline.complete_phase("github_fetch")
+except Exception as e:
+    timeline.fail_phase("github_fetch", str(e))
+    raise
+
+# Access timeline data
+timeline.to_dict()  # {"phases": {...}, "total_duration_seconds": 45.2}
+```
+
+## API reference
+
+### AnalysisOrchestrator
+
+```python
+from advisor.analysis.core.orchestrator import AnalysisOrchestrator
+
+orchestrator = AnalysisOrchestrator(github_token="ghp_...")
+result = await orchestrator.analyze("https://github.com/owner/repo")
+
+# Access results
+print(result.technical_summary)
+print(result.tech_stack.languages)
+print(result.risks_and_gaps)
+print(result.timeline)
+```
+
+### StackDetector
+
+```python
+from advisor.analysis.detectors.stack_detector import StackDetector
+
+detector = StackDetector()
+tech_stack = detector.detect(file_tree, file_contents)
+
+print(tech_stack.languages)        # ["Python", "TypeScript"]
+print(tech_stack.frameworks)       # ["FastAPI", "React"]
+print(tech_stack.databases)        # ["PostgreSQL"]
+print(tech_stack.versions)         # {"react": "18.2.0"}
+```
+
+### ArchitectureAnalyzer
+
+```python
+from advisor.analysis.analyzers.architecture import ArchitectureAnalyzer
+
+analyzer = ArchitectureAnalyzer()
+patterns = analyzer.analyze(file_tree, file_contents)
+
+for pattern in patterns:
+    print(f"{pattern.pattern_name}: {pattern.confidence * 100}%")
+    print(f"Evidence: {', '.join(pattern.evidence)}")
+```
+
+### RiskAnalyzer
+
+```python
+from advisor.analysis.analyzers.risk_analyzer import RiskAnalyzer
+
+analyzer = RiskAnalyzer()
+risks = analyzer.analyze(file_tree, file_contents, tech_stack)
+
+for risk in risks:
+    print(f"[{risk.severity.upper()}] {risk.title}")
+    print(f"Impact: {risk.impact}")
+    print(f"Recommendation: {risk.recommendation}")
+```

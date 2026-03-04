@@ -1,0 +1,74 @@
+---
+title: Recommendation
+description: Forward-looking recommendation for codebase improvement
+---
+
+The `Recommendation` model represents an actionable recommendation for improving the codebase, architecture, or development processes.
+
+## Fields
+
+<ResponseField name="category" type="string" required>
+  Category of the recommendation. Common values include:
+  
+  - `architecture` - Architectural improvements or refactoring
+  - `tooling` - Development tools and infrastructure
+  - `process` - Development processes and workflows
+  - `testing` - Testing strategy and coverage
+  - `documentation` - Documentation improvements
+  - `performance` - Performance optimizations
+  - `security` - Security enhancements
+</ResponseField>
+
+<ResponseField name="priority" type="string" required>
+  Priority level for implementing the recommendation. Valid values:
+  
+  - `low` - Nice to have, implement when resources allow
+  - `medium` - Should be addressed in the near term
+  - `high` - Important improvement, prioritize in upcoming work
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Brief title summarizing the recommendation.
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Detailed description of the recommendation and its benefits.
+</ResponseField>
+
+<ResponseField name="effort_estimate" type="string" required>
+  Estimated effort required to implement. Valid values:
+  
+  - `small` - Can be completed in a few hours or a day
+  - `medium` - Requires several days to a week
+  - `large` - Requires multiple weeks or significant resources
+</ResponseField>
+
+<ResponseField name="business_impact" type="string" required>
+  Description of the business value and impact of implementing this recommendation.
+</ResponseField>
+
+<ResponseField name="technical_steps" type="list[string]">
+  Step-by-step technical implementation guidance. Defaults to an empty list.
+</ResponseField>
+
+## Example
+
+```json
+{
+  "category": "architecture",
+  "priority": "high",
+  "title": "Implement caching layer for API responses",
+  "description": "Add a Redis-based caching layer to reduce database load and improve API response times for frequently accessed data.",
+  "effort_estimate": "medium",
+  "business_impact": "Reduces API latency by 60-80% for cached endpoints, improving user experience and reducing infrastructure costs by minimizing database queries.",
+  "technical_steps": [
+    "Set up Redis instance in production environment",
+    "Install redis-py client library",
+    "Create cache wrapper utilities with TTL configuration",
+    "Identify high-traffic endpoints for caching",
+    "Implement cache-aside pattern for read operations",
+    "Add cache invalidation logic for write operations",
+    "Monitor cache hit rates and adjust TTL values"
+  ]
+}
+```

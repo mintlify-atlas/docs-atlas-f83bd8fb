@@ -1,0 +1,228 @@
+---
+title: Welcome to Neutrino
+description: AI-powered development advisor that transforms GitHub repositories into actionable intelligence
+mode: custom
+---
+
+<div className="relative overflow-hidden bg-gradient-to-br from-[#0A0A0F] via-[#14143c] to-[#0A0A0F] dark:from-[#0A0A0F] dark:via-[#14143c] dark:to-[#0A0A0F]">
+  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40"></div>
+  
+  <div className="relative max-w-6xl mx-auto px-6 py-20 lg:py-28">
+    <div className="text-center">
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-white/5 dark:bg-white/5 border border-white/10 dark:border-white/10 rounded-full text-sm text-gray-300 dark:text-gray-300">
+        <span className="inline-block w-2 h-2 bg-[#5571b0] rounded-full animate-pulse"></span>
+        AI-Powered Repository Intelligence
+      </div>
+      
+      <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white dark:text-white mb-6 leading-tight">
+        Transform Codebases into <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#5571b0] to-[#1c7484]">Actionable Intelligence</span>
+      </h1>
+      
+      <p className="text-lg sm:text-xl text-gray-300 dark:text-gray-300 max-w-3xl mx-auto mb-10 leading-relaxed">
+        Neutrino analyzes GitHub repositories and generates comprehensive technical and executive summaries, enriched with real-time trend intelligence and RAG-powered insights.
+      </p>
+      
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center gap-2 px-6 py-3 bg-[#5571b0] hover:bg-[#4561a0] text-white font-semibold rounded-full transition-colors no-underline"
+        >
+          Get Started
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a 
+          href="/api/overview" 
+          className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 dark:bg-white/10 dark:hover:bg-white/20 border border-white/20 dark:border-white/20 text-white font-semibold rounded-full transition-colors no-underline"
+        >
+          View API Reference
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Quick Start</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Get Neutrino up and running in minutes</p>
+  
+  <Steps>
+    <Step title="Clone the repository">
+      Clone the Neutrino repository to your local machine:
+      
+      ```bash
+      git clone https://github.com/AstralKS/NeutrinoM.git
+      cd NeutrinoM
+      ```
+    </Step>
+    
+    <Step title="Configure environment variables">
+      Create a `.env` file in the root directory with your credentials:
+      
+      ```bash
+      # Required
+      SUPABASE_URL=https://your-project.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+      
+      # At least one OpenRouter API key required
+      OPENROUTER_API_KEY_1=sk-or-v1-xxx
+      
+      # Required for trend data
+      SERPER_API_KEY=your-serper-api-key
+      ```
+      
+      <Info>You can add up to 4 OpenRouter API keys for multi-key rotation and improved rate limits</Info>
+    </Step>
+    
+    <Step title="Start the backend services">
+      Launch the FastAPI server and optional Streamlit UI:
+      
+      ```bash
+      cd backend
+      uv sync
+      uv run uvicorn advisor.api.endpoints:app --reload --port 8000
+      ```
+      
+      The API will be available at `http://localhost:8000` with interactive docs at `/docs`
+    </Step>
+    
+    <Step title="Analyze your first repository">
+      Send a POST request to analyze a GitHub repository:
+      
+      ```bash cURL
+      curl -X POST "http://localhost:8000/analyze" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "repo_url": "https://github.com/owner/repo",
+          "github_token": "optional-token-for-private-repos"
+        }'
+      ```
+      
+      <Accordion title="Example Response">
+        ```json
+        {
+          "success": true,
+          "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
+          "message": "Analysis completed",
+          "technical_summary": "...",
+          "executive_summary": "...",
+          "timeline": {...},
+          "trend_data": {...}
+        }
+        ```
+      </Accordion>
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Key Features</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Powerful capabilities for repository intelligence</p>
+  
+  <CardGroup cols={2}>
+    <Card title="AI-Powered Analysis" icon="brain" href="/features/analysis-engine">
+      Deep code analysis using multiple LLM agents running in parallel for frontend, backend, and infrastructure assessment
+    </Card>
+    <Card title="Trend Intelligence" icon="chart-line" href="/features/trend-intelligence">
+      RAG-based trend data enrichment with pgvector, pulling real-time insights from Google, GitHub, and Hacker News
+    </Card>
+    <Card title="Technical & Executive Reports" icon="file-lines" href="/features/report-generation">
+      Generate comprehensive summaries tailored for engineers and business leaders with downloadable reports
+    </Card>
+    <Card title="Smart Stack Detection" icon="layer-group" href="/features/analysis-engine">
+      Automatically detect languages, frameworks, databases, and tools with architecture pattern recognition
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Architecture Overview</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Built for speed and scalability</p>
+  
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <a href="/architecture" className="group block p-6 bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] hover:border-[#5571b0] dark:hover:border-[#5571b0] rounded-xl transition-colors no-underline">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-center w-10 h-10 bg-[#5571b0]/10 dark:bg-[#5571b0]/10 rounded-lg">
+          <svg className="w-5 h-5 text-[#5571b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">FastAPI Backend</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">High-performance async API with parallel LLM processing and multi-key rotation</p>
+    </a>
+    
+    <a href="/features/rag-system" className="group block p-6 bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] hover:border-[#5571b0] dark:hover:border-[#5571b0] rounded-xl transition-colors no-underline">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-center w-10 h-10 bg-[#1c7484]/10 dark:bg-[#1c7484]/10 rounded-lg">
+          <svg className="w-5 h-5 text-[#1c7484]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Supabase + pgvector</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">PostgreSQL database with vector similarity search for RAG-based trend caching</p>
+    </a>
+    
+    <a href="/deployment/setup" className="group block p-6 bg-white dark:bg-[#1a1d27] border border-gray-200 dark:border-[#27272a] hover:border-[#5571b0] dark:hover:border-[#5571b0] rounded-xl transition-colors no-underline">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-center w-10 h-10 bg-[#5571b0]/10 dark:bg-[#5571b0]/10 rounded-lg">
+          <svg className="w-5 h-5 text-[#5571b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">React Frontend</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">Modern React 19 + Vite dashboard with landing page and analysis visualization</p>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Explore the Documentation</h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">Everything you need to deploy and customize Neutrino</p>
+  
+  <CardGroup cols={3}>
+    <Card title="Architecture" icon="sitemap" href="/architecture">
+      Understand the system design and data flow
+    </Card>
+    <Card title="API Reference" icon="code" href="/api/overview">
+      Complete API endpoint documentation
+    </Card>
+    <Card title="Deployment" icon="rocket" href="/deployment/setup">
+      Deploy to production environments
+    </Card>
+    <Card title="Trend Intelligence" icon="brain-circuit" href="/features/trend-intelligence">
+      Learn how RAG enriches analysis
+    </Card>
+    <Card title="Testing" icon="flask" href="/development/testing">
+      Run the 60-test suite
+    </Card>
+    <Card title="Configuration" icon="gear" href="/deployment/configuration">
+      Environment variables and settings
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="relative overflow-hidden bg-gradient-to-br from-[#5571b0] to-[#1c7484] rounded-2xl p-10 text-center">
+    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
+    
+    <div className="relative">
+      <h2 className="text-3xl font-bold text-white mb-4">Ready to analyze your first repository?</h2>
+      <p className="text-lg text-white/90 mb-6 max-w-2xl mx-auto">
+        Get started in minutes with our comprehensive quickstart guide
+      </p>
+      <a 
+        href="/quickstart" 
+        className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-100 text-[#5571b0] font-semibold rounded-full transition-colors no-underline"
+      >
+        Start Analyzing
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,711 @@
+---
+title: Code structure
+description: Understand the Neutrino codebase architecture and module organization
+---
+
+## Project architecture
+
+Neutrino follows a **clean architecture** pattern with clear separation of concerns between backend and frontend:
+
+```
+neutrino/
+├── backend/           # Python API + Streamlit UI
+├── frontend/          # React landing + dashboard
+├── docs/              # Documentation (Mintlify)
+└── .env               # Environment variables (gitignored)
+```
+
+## Backend structure
+
+The backend is organized as a Python package with **51 Python files** across multiple modules:
+
+```
+backend/
+├── src/advisor/                # Main application package
+│   ├── config/                 # Configuration and settings
+│   ├── database/               # Database layer (Supabase)
+│   ├── github/                 # GitHub API integration
+│   ├── llm/                    # LLM client (OpenRouter)
+│   ├── analysis/               # Intelligence engine
+│   ├── trends/                 # Trend intelligence (RAG)
+│   ├── reports/                # Report generation
+│   ├── api/                    # FastAPI endpoints
+│   └── ui/                     # Streamlit UI
+├── tests/                      # Test suite (60 tests)
+├── migrations/                 # Database migrations
+├── scripts/                    # Utility scripts
+├── pyproject.toml              # Dependencies and config
+└── uv.lock                     # Dependency lock file
+```
+
+### Module overview
+
+<CardGroup cols={2}>
+  <Card title="config" icon="gear" href="#config-module">
+    Settings and environment configuration
+  </Card>
+
+  <Card title="database" icon="database" href="#database-module">
+    Supabase client and data models
+  </Card>
+
+  <Card title="github" icon="github" href="#github-module">
+    Repository fetching and parsing
+  </Card>
+
+  <Card title="llm" icon="brain" href="#llm-module">
+    OpenRouter client and prompts
+  </Card>
+
+  <Card title="analysis" icon="magnifying-glass-chart" href="#analysis-module">
+    Core intelligence engine
+  </Card>
+
+  <Card title="trends" icon="chart-line" href="#trends-module">
+    RAG-based trend intelligence
+  </Card>
+
+  <Card title="api" icon="server" href="#api-module">
+    FastAPI REST endpoints
+  </Card>
+
+  <Card title="ui" icon="desktop" href="#ui-module">
+    Streamlit web interface
+  </Card>
+</CardGroup>
+
+## Config module
+
+**Location:** `backend/src/advisor/config/`
+
+Manages application configuration with environment variable validation.
+
+<Accordion title="settings.py">
+  Pydantic-based settings with environment loading:
+
+  ```python
+  from pydantic_settings import BaseSettings
+
+  class Settings(BaseSettings):
+      # Supabase
+      supabase_url: str
+      supabase_service_role_key: str
+      
+      # OpenRouter (multi-key rotation)
+      openrouter_api_key_1: str
+      openrouter_api_key_2: str | None = None
+      openrouter_api_key_3: str | None = None
+      openrouter_api_key_4: str | None = None
+      
+      # Serper (web search)
+      serper_api_key: str | None = None
+      
+      @property
+      def openrouter_api_keys(self) -> list[str]:
+          """Get all available API keys for rotation."""
+          return [k for k in [self.openrouter_api_key_1, ...] if k]
+  ```
+
+  **Features:**
+  - Automatic `.env` file loading
+  - Fail-fast validation for required variables
+  - Multi-key rotation support
+  - Type-safe configuration access
+</Accordion>
+
+**Key file:** `config/settings.py:1`
+
+## Database module
+
+**Location:** `backend/src/advisor/database/`
+
+Handles all data persistence using Supabase (PostgreSQL + pgvector).
+
+<AccordionGroup>
+  <Accordion title="client.py">
+    Supabase client factory with connection pooling:
+
+    ```python
+    from supabase import create_client, Client
+
+    def get_supabase_client(settings: Settings) -> Client:
+        """Create Supabase client with validated credentials."""
+        return create_client(
+            settings.supabase_url,
+            settings.supabase_service_role_key
+        )
+    ```
+  </Accordion>
+
+  <Accordion title="models.py">
+    Pydantic models for data validation:
+
+    ```python
+    class AnalysisRecord(BaseModel):
+        id: UUID | None
+        repo_url: str
+        repo_name: str
+        analyzed_at: datetime
+        model_used: str
+        tech_stack: TechStackInfo
+        architecture_patterns: list[ArchitecturePattern]
+        risks_and_gaps: list[RiskItem]
+        recommendations: list[Recommendation]
+        technical_summary: str
+        executive_summary: str
+        analysis_duration_ms: int | None
+        token_usage: dict[str, int]
+        timeline: dict[str, Any] | None
+        trend_data: dict[str, Any] | None
+    ```
+  </Accordion>
+
+  <Accordion title="repository.py">
+    CRUD operations for analysis records:
+
+    ```python
+    class AnalysisRepository:
+        async def save_analysis(self, record: AnalysisRecord) -> UUID
+        async def get_analysis(self, analysis_id: UUID) -> AnalysisRecord
+        async def list_analyses(self, limit: int = 10) -> list[AnalysisRecord]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+**Key files:**
+- `database/client.py:1` - Client factory
+- `database/models.py:1` - Data models
+- `database/repository.py:1` - CRUD operations
+
+## GitHub module
+
+**Location:** `backend/src/advisor/github/`
+
+Handles GitHub API interactions and repository analysis.
+
+<AccordionGroup>
+  <Accordion title="client.py">
+    GitHub API client with async support:
+
+    ```python
+    class GitHubClient:
+        @staticmethod
+        def parse_repo_url(url: str) -> tuple[str, str]:
+            """Parse owner and repo from GitHub URL."""
+            # Returns (owner, repo)
+        
+        async def get_repo_metadata(owner: str, repo: str) -> dict:
+            """Fetch repository metadata."""
+        
+        async def get_file_tree(owner: str, repo: str, branch: str) -> list:
+            """Fetch complete file tree."""
+        
+        async def get_file_content(owner: str, repo: str, path: str, branch: str) -> str:
+            """Fetch file content (supports private repos)."""
+    ```
+
+    **Features:**
+    - Private repository support with ephemeral tokens
+    - Async operations with `httpx`
+    - Automatic rate limit handling
+  </Accordion>
+
+  <Accordion title="strategic_fetcher.py">
+    Smart 3-pass file fetching to minimize API calls:
+
+    ```python
+    class StrategicFetcher:
+        async def fetch_priority_files(owner: str, repo: str) -> dict:
+            """Fetch ~150 most important files in 3 passes."""
+            # Pass 1: Config files (package.json, requirements.txt)
+            # Pass 2: Documentation (README, CONTRIBUTING)
+            # Pass 3: Code files (prioritized by path)
+    ```
+  </Accordion>
+
+  <Accordion title="parser.py">
+    File tree parsing and classification:
+
+    ```python
+    class RepositoryParser:
+        @staticmethod
+        def parse_file_tree(tree: list) -> RepositoryStructure:
+            """Parse and classify files."""
+        
+        @staticmethod
+        def get_files_to_analyze(structure: RepositoryStructure) -> list[str]:
+            """Select priority files for analysis."""
+    ```
+
+    **Classifications:**
+    - Code files (.py, .js, .ts, .go, etc.)
+    - Config files (package.json, pyproject.toml)
+    - Documentation (.md, .rst)
+    - Test files (*test*.py, *.spec.ts)
+  </Accordion>
+</AccordionGroup>
+
+**Key files:**
+- `github/client.py:1` - API client
+- `github/strategic_fetcher.py:1` - Smart file fetching
+- `github/parser.py:1` - Tree parsing
+
+## LLM module
+
+**Location:** `backend/src/advisor/llm/`
+
+Manages LLM interactions via OpenRouter with optimization features.
+
+<AccordionGroup>
+  <Accordion title="client.py">
+    OpenRouter client with advanced features:
+
+    ```python
+    class OpenRouterClient:
+        def __init__(self, api_keys: list[str]):
+            """Initialize with shared httpx.AsyncClient."""
+            self._client = None  # Lazy-initialized
+            self._api_keys = api_keys
+            self._current_key_index = 0
+        
+        async def complete(
+            self,
+            prompt: str,
+            system_prompt: str,
+            temperature: float = 0.7
+        ) -> dict:
+            """Generate completion with timing."""
+            # Returns: {content, usage, duration_ms, model}
+        
+        async def close(self):
+            """Close shared HTTP client."""
+    ```
+
+    **Optimizations:**
+    - Shared `httpx.AsyncClient` (eliminates TCP/TLS overhead)
+    - Multi-key rotation (up to 4 keys)
+    - Model fallback (primary → secondary)
+    - Per-call `duration_ms` tracking
+    - Token usage monitoring
+  </Accordion>
+
+  <Accordion title="models.py">
+    Model registry and capabilities:
+
+    ```python
+    DEFAULT_MODELS = {
+        "primary": "tngtech/deepseek-r1t-chimera:free",
+        "fallback": "google/gemma-3-27b-it:free"
+    }
+
+    MODEL_CAPABILITIES = {
+        "max_tokens": 8192,
+        "context_window": 128000,
+        "supports_functions": False
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="prompts.py">
+    Constraint-based prompts (not identity roleplay):
+
+    ```python
+    SYSTEM_PROMPT = """You are a software architecture analyst.
+
+    CONSTRAINTS:
+    - Base ALL findings on actual evidence
+    - Return ONLY what is requested
+    - Be specific - reference actual files
+    - No generic advice
+    """
+
+    TECHNICAL_SUMMARY_PROMPT = """Analyze the codebase and provide:
+    1. Architecture patterns (with evidence)
+    2. Code quality assessment
+    3. Security considerations
+    4. Technical debt
+    """
+    ```
+  </Accordion>
+</AccordionGroup>
+
+**Key files:**
+- `llm/client.py:1` - OpenRouter client
+- `llm/models.py:1` - Model configuration
+- `llm/prompts.py:1` - Prompt templates
+
+## Analysis module
+
+**Location:** `backend/src/advisor/analysis/`
+
+The core intelligence engine with three sub-modules:
+
+```
+analysis/
+├── core/          # Orchestration and coordination
+├── analyzers/     # Specialized analysis components
+└── detectors/     # Pattern detection and classification
+```
+
+### Core sub-module
+
+<AccordionGroup>
+  <Accordion title="orchestrator.py">
+    Main coordinator for the entire analysis pipeline:
+
+    ```python
+    class AnalysisOrchestrator:
+        async def analyze(self, repo_url: str) -> AnalysisRecord:
+            """Execute complete analysis pipeline."""
+            # 1. Fetch repository data
+            # 2. Detect tech stack
+            # 3. Analyze architecture
+            # 4. Identify risks
+            # 5. Enrich with trends (RAG)
+            # 6. Deep code review (parallel agents)
+            # 7. Generate reports
+            # 8. Track timing
+    ```
+
+    **Flow:**
+    1. GitHub data fetching (strategic 3-pass)
+    2. Static analysis (stack, architecture, risks)
+    3. Trend enrichment (RAG-based)
+    4. LLM analysis (parallel agents)
+    5. Report generation
+  </Accordion>
+
+  <Accordion title="deep_review.py">
+    Parallel LLM code review:
+
+    ```python
+    class DeepReviewOrchestrator:
+        async def review(self, codebase_context: dict) -> dict:
+            """Run parallel review agents."""
+            # Parallel execution:
+            # - Frontend agent
+            # - Backend agent
+            # - Infrastructure agent
+    ```
+  </Accordion>
+
+  <Accordion title="report_agent.py">
+    RAG-enhanced report generation:
+
+    ```python
+    class ReportAgent:
+        async def generate_technical_summary(context: dict) -> str
+        async def generate_executive_summary(context: dict) -> str
+    ```
+  </Accordion>
+
+  <Accordion title="timeline.py">
+    Per-phase and per-API-call timing:
+
+    ```python
+    class Timeline:
+        def start_phase(self, name: str)
+        def end_phase(self, name: str)
+        def record_api_call(self, name: str, duration_ms: int)
+        def get_summary(self) -> dict
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Detectors sub-module
+
+Static analysis components:
+
+<Tabs>
+  <Tab title="Stack detector">
+    ```python
+    class StackDetector:
+        def detect(self, files: list, contents: dict) -> TechStackInfo:
+            """Detect languages, frameworks, databases, tools."""
+            # Detects from:
+            # - File extensions
+            # - Package manifests
+            # - Import statements
+            # - Configuration files
+    ```
+
+    **Detected categories:**
+    - Languages (Python, JavaScript, TypeScript, Go, Rust, etc.)
+    - Frameworks (React, FastAPI, Django, Express, etc.)
+    - Databases (PostgreSQL, MongoDB, Redis, etc.)
+    - Tools (Docker, GitHub Actions, ESLint, etc.)
+  </Tab>
+
+  <Tab title="Architecture analyzer">
+    ```python
+    class ArchitectureAnalyzer:
+        def analyze(self, files: list, contents: dict) -> list[ArchitecturePattern]:
+            """Detect architecture patterns."""
+            # Patterns:
+            # - Clean Architecture
+            # - MVC/MVVM
+            # - Microservices
+            # - Monolith
+    ```
+  </Tab>
+
+  <Tab title="Risk analyzer">
+    ```python
+    class RiskAnalyzer:
+        def analyze(self, files: list, contents: dict, stack: TechStackInfo) -> list[RiskItem]:
+            """Identify security and quality risks."""
+            # Checks:
+            # - Missing tests
+            # - No CI/CD
+            # - Hardcoded secrets
+            # - No containerization
+    ```
+  </Tab>
+</Tabs>
+
+**Key files:**
+- `analysis/core/orchestrator.py:1` - Main coordinator
+- `analysis/core/deep_review.py:1` - Parallel agents
+- `analysis/detectors/stack_detector.py` - Tech detection
+
+## Trends module
+
+**Location:** `backend/src/advisor/trends/`
+
+RAG-based trend intelligence with Supabase pgvector.
+
+<AccordionGroup>
+  <Accordion title="trend_master.py">
+    Orchestrates trend collection and LLM summarization:
+
+    ```python
+    class TrendMaster:
+        async def enrich_with_trends(self, tech_stack: TechStackInfo) -> dict:
+            """Fetch or retrieve trend data for each technology."""
+            # For each tag:
+            # 1. Check RAG cache (pgvector)
+            # 2. If miss → collect fresh data
+            # 3. LLM summarization
+            # 4. Store back to RAG
+    ```
+  </Accordion>
+
+  <Accordion title="data_collector.py">
+    Parallel data fetching from multiple sources:
+
+    ```python
+    class DataCollector:
+        async def collect(self, tag: str) -> dict:
+            """Fetch data from Serper, GitHub, Hacker News."""
+            # Parallel execution:
+            # - Serper (Google Search)
+            # - GitHub API (releases)
+            # - Hacker News (Algolia)
+    ```
+  </Accordion>
+
+  <Accordion title="rag_manager.py">
+    Supabase pgvector storage and retrieval:
+
+    ```python
+    class RAGManager:
+        async def check_cache(self, tag: str) -> TrendInsight | None:
+            """Check if trend data exists in RAG cache."""
+        
+        async def store_insight(self, insight: TrendInsight):
+            """Store trend insight with vector embedding."""
+    ```
+  </Accordion>
+</AccordionGroup>
+
+**Key files:**
+- `trends/trend_master.py:1` - Orchestrator
+- `trends/data_collector.py:1` - Multi-source fetch
+- `trends/rag_manager.py:1` - Vector storage
+
+## API module
+
+**Location:** `backend/src/advisor/api/`
+
+FastAPI REST endpoints for programmatic access.
+
+<Accordion title="endpoints.py">
+  **Available endpoints:**
+
+  | Endpoint | Method | Description |
+  |----------|--------|-------------|
+  | `/health` | GET | Health check |
+  | `/analyze` | POST | Analyze repository (returns 202 Accepted) |
+  | `/analysis/{id}` | GET | Get stored analysis |
+  | `/analyses` | GET | List recent analyses |
+
+  **Example request:**
+
+  ```python
+  @app.post("/analyze")
+  async def analyze_repository(request: AnalyzeRequest):
+      """Start repository analysis."""
+      orchestrator = AnalysisOrchestrator()
+      result = await orchestrator.analyze(request.repo_url)
+      return {"analysis_id": result.id}
+  ```
+</Accordion>
+
+**Access:** http://localhost:8000/docs for interactive API documentation
+
+## UI module
+
+**Location:** `backend/src/advisor/ui/`
+
+Streamlit-based web interface (legacy, being replaced by React frontend).
+
+<Accordion title="app.py">
+  **Features:**
+  - Repository URL input
+  - Private repo token support
+  - Tabbed view (Technical / Executive)
+  - Download buttons (Markdown reports)
+  - Recent analyses list
+  - API health indicator
+
+  **Access:** http://localhost:8501
+</Accordion>
+
+## Frontend structure
+
+The React frontend provides the landing page and dashboard:
+
+```
+frontend/
+├── src/
+│   ├── assets/                # Images and static files
+│   ├── components/
+│   │   ├── features/          # Landing page sections
+│   │   │   ├── Hero.tsx       # Hero section
+│   │   │   ├── FeaturesSection.tsx
+│   │   │   └── DashboardPreview.tsx
+│   │   ├── dashboard/         # Dashboard components
+│   │   │   ├── AnalysisView.tsx
+│   │   │   └── ReportViewer.tsx
+│   │   ├── layout/            # Layout components
+│   │   │   ├── Header.tsx
+│   │   │   └── Footer.tsx
+│   │   └── ui/                # Reusable UI components
+│   │       ├── Button.tsx
+│   │       ├── GlassCard.tsx
+│   │       └── Input.tsx
+│   ├── pages/                 # Route-level pages
+│   │   ├── Landing.tsx
+│   │   └── Dashboard.tsx
+│   ├── services/              # API client
+│   │   └── api.ts
+│   ├── types/                 # TypeScript types
+│   │   └── analysis.ts
+│   ├── App.tsx                # Main app component
+│   └── main.tsx               # Entry point
+├── index.html
+├── package.json
+└── vite.config.ts
+```
+
+### Component organization
+
+<CardGroup cols={3}>
+  <Card title="features/" icon="puzzle-piece">
+    Landing page sections and feature showcases
+  </Card>
+
+  <Card title="dashboard/" icon="chart-line">
+    Analysis dashboard and report viewing
+  </Card>
+
+  <Card title="layout/" icon="table-layout">
+    Header, footer, and page layouts
+  </Card>
+
+  <Card title="ui/" icon="paintbrush">
+    Reusable components (buttons, cards, inputs)
+  </Card>
+
+  <Card title="pages/" icon="file">
+    Route-level page components
+  </Card>
+
+  <Card title="services/" icon="plug">
+    API client and external integrations
+  </Card>
+</CardGroup>
+
+### Frontend tech stack
+
+- **React 19** - UI framework
+- **Vite** - Build tool and dev server
+- **Tailwind CSS** - Utility-first styling
+- **Framer Motion** - Animations
+- **TypeScript** - Type safety
+
+## Design principles
+
+<CardGroup cols={2}>
+  <Card title="Clean architecture" icon="layer-group">
+    Separation of concerns with dependency injection
+  </Card>
+
+  <Card title="Async-first" icon="bolt">
+    All I/O operations use `async/await` for parallelism
+  </Card>
+
+  <Card title="Type safety" icon="shield-check">
+    Pydantic models for Python, TypeScript for frontend
+  </Card>
+
+  <Card title="Performance" icon="gauge-high">
+    Shared HTTP clients, parallel execution, RAG caching
+  </Card>
+
+  <Card title="Ephemeral credentials" icon="key">
+    Never store secrets, use only for requests
+  </Card>
+
+  <Card title="Evidence-based" icon="microscope">
+    All analysis backed by actual code evidence
+  </Card>
+</CardGroup>
+
+## Key optimizations
+
+1. **Shared httpx Client** - Single `AsyncClient` reused across all LLM calls
+2. **Parallel everything** - RAG lookups, trend searches, file fetches via `asyncio.gather`
+3. **RAG-first flow** - Check pgvector cache before collecting fresh data
+4. **Strategic fetching** - Smart 3-pass file retrieval (~150 files)
+5. **Multi-key rotation** - Up to 4 OpenRouter API keys
+6. **Per-call timing** - Every LLM/RAG call records `duration_ms`
+
+## Development commands
+
+```bash
+# Backend
+cd backend
+uv run uvicorn advisor.api.endpoints:app --reload --port 8000   # API
+uv run streamlit run src/advisor/ui/app.py                      # UI
+uv run pytest tests/ -v                                          # Tests
+uv run ruff check src/ && uv run ruff format src/               # Lint
+
+# Frontend
+cd frontend
+npm run dev      # Dev server
+npm run build    # Production build
+npm run lint     # ESLint
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-pull-request" href="/development/overview">
+    Set up your development environment
+  </Card>
+
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Learn about our test suite
+  </Card>
+</CardGroup>

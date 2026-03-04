@@ -1,0 +1,226 @@
+---
+title: Database
+description: Set up Supabase with PostgreSQL and pgvector for analysis storage and trend intelligence
+---
+
+## Overview
+
+Neutrino uses Supabase for:
+- Storing analysis records with structured JSONB data
+- Vector-based trend intelligence using pgvector
+- Real-time query performance with indexed lookups
+
+## Supabase setup
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Note your project URL and service role key
+3. Run the SQL migrations in the Supabase SQL Editor
+
+## Database migrations
+
+### Migration 1: Analysis records table
+
+This migration creates the main `analysis_records` table for storing repository analysis results:
+
+```sql backend/migrations/001_create_analysis_records.sql
+-- AI Development Advisor - Database Migration V2
+-- DROPS THE EXISTING TABLE AND RECREATES WITH NEW FIELDS
+-- Run this in your Supabase SQL Editor
+
+-- Drop existing table (we're in dev, no data loss risk)
+DROP TABLE IF EXISTS analysis_records CASCADE;
+
+-- Create new table with enhanced fields
+CREATE TABLE analysis_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    repo_url TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    analyzed_at TIMESTAMPTZ DEFAULT NOW(),
+    model_used TEXT NOT NULL,
+    
+    -- Structured analysis output (JSONB for flexibility)
+    tech_stack JSONB NOT NULL DEFAULT '{}'::jsonb,
+    architecture_patterns JSONB NOT NULL DEFAULT '[]'::jsonb,
+    risks_and_gaps JSONB NOT NULL DEFAULT '[]'::jsonb,
+    recommendations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    
+    -- NEW: Enhanced analysis fields
+    features JSONB NOT NULL DEFAULT '[]'::jsonb,
+    business_model JSONB DEFAULT NULL,
+    integrations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    
+    -- Dual outputs - derived from same analysis
+    technical_summary TEXT NOT NULL DEFAULT '',
+    executive_summary TEXT NOT NULL DEFAULT '',
+    
+    -- Metadata
+    analysis_duration_ms INTEGER,
+    file_count INTEGER,
+    files_analyzed INTEGER,
+    token_usage JSONB DEFAULT '{}'::jsonb,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for common queries
+CREATE INDEX idx_analysis_repo_url ON analysis_records(repo_url);
+CREATE INDEX idx_analysis_created_at ON analysis_records(created_at DESC);
+CREATE INDEX idx_analysis_repo_name ON analysis_records(repo_name);
+
+-- Comments
+COMMENT ON TABLE analysis_records IS 'Stores repository analysis results from the AI Development Advisor V2';
+COMMENT ON COLUMN analysis_records.features IS 'User-facing features detected from API endpoints';
+COMMENT ON COLUMN analysis_records.business_model IS 'Auth, payments, monetization, growth mechanisms';
+COMMENT ON COLUMN analysis_records.integrations IS 'Cloud services, SaaS tools with cost tiers';
+COMMENT ON COLUMN analysis_records.files_analyzed IS 'Number of files strategically fetched (up to 150)';
+```
+
+### Migration 2: Trend insights columns
+
+This migration adds version tracking columns to the `trend_insights` table:
+
+```sql backend/migrations/002_add_trend_version_columns.sql
+-- AI Development Advisor - Add version columns to trend_insights
+-- Run this in your Supabase SQL Editor
+-- Adds latest_version and version_info columns to existing trend_insights table
+
+ALTER TABLE trend_insights
+    ADD COLUMN IF NOT EXISTS latest_version TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS version_info TEXT DEFAULT '';
+
+COMMENT ON COLUMN trend_insights.latest_version IS 'Latest detected version for the technology (e.g. "3.12.1")';
+COMMENT ON COLUMN trend_insights.version_info IS 'Brief notes about version changes and updates';
+```
+
+<Note>
+  The `trend_insights` table must be created before running migration 002. This table is managed by Supabase pgvector and stores RAG-based trend intelligence.
+</Note>
+
+## Schema details
+
+### Analysis records table
+
+The `analysis_records` table stores complete repository analysis results:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key, auto-generated |
+| `repo_url` | TEXT | Full GitHub repository URL |
+| `repo_name` | TEXT | Repository name (owner/repo) |
+| `analyzed_at` | TIMESTAMPTZ | Analysis completion timestamp |
+| `model_used` | TEXT | LLM model used for analysis |
+| `tech_stack` | JSONB | Languages, frameworks, databases, tools |
+| `architecture_patterns` | JSONB | Detected patterns (MVC, Clean, etc.) |
+| `risks_and_gaps` | JSONB | Security, maintainability, scalability risks |
+| `recommendations` | JSONB | Prioritized improvement recommendations |
+| `features` | JSONB | User-facing features detected |
+| `business_model` | JSONB | Auth, payments, monetization mechanisms |
+| `integrations` | JSONB | Cloud services and SaaS integrations |
+| `technical_summary` | TEXT | Engineer-focused summary |
+| `executive_summary` | TEXT | Business leader-focused summary |
+| `analysis_duration_ms` | INTEGER | Total analysis time in milliseconds |
+| `file_count` | INTEGER | Total files in repository |
+| `files_analyzed` | INTEGER | Number of files strategically fetched |
+| `token_usage` | JSONB | LLM token usage breakdown |
+| `created_at` | TIMESTAMPTZ | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | Record update timestamp |
+
+### Trend insights table
+
+The `trend_insights` table stores RAG-based trend intelligence with pgvector:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Unique identifier (hash of tag + timestamp) |
+| `tag` | TEXT | Technology tag (e.g., "react", "fastapi") |
+| `key_points` | JSONB | 5-7 bullet points summarizing the trend |
+| `momentum` | TEXT | rising, stable, or declining |
+| `risks` | JSONB | Up to 3 key risks |
+| `opportunities` | JSONB | Up to 3 key opportunities |
+| `direction` | TEXT | Where the technology is heading |
+| `latest_version` | TEXT | Latest detected version |
+| `version_info` | TEXT | Brief version change notes |
+| `sources` | JSONB | Source citations with links and dates |
+| `sources_count` | INTEGER | Number of sources consulted |
+| `collected_at` | TIMESTAMPTZ | Data collection timestamp |
+
+## Indexes
+
+The following indexes are created for optimal query performance:
+
+### Analysis records indexes
+
+```sql
+CREATE INDEX idx_analysis_repo_url ON analysis_records(repo_url);
+CREATE INDEX idx_analysis_created_at ON analysis_records(created_at DESC);
+CREATE INDEX idx_analysis_repo_name ON analysis_records(repo_name);
+```
+
+These indexes enable fast lookups by:
+- Repository URL (for finding existing analyses)
+- Creation date (for recent analyses)
+- Repository name (for search)
+
+## pgvector extension
+
+To enable vector-based similarity search for trend intelligence, the pgvector extension must be enabled in your Supabase project:
+
+1. Go to Database → Extensions in the Supabase dashboard
+2. Search for "pgvector"
+3. Click "Enable" to activate the extension
+
+The `trend_insights` table uses pgvector to store embeddings for semantic similarity search, enabling intelligent caching and retrieval of trend data.
+
+## Database client
+
+Neutrino provides a factory function for creating Supabase clients:
+
+```python backend/src/advisor/database/client.py
+from advisor.database.client import get_supabase_client
+
+client = get_supabase_client()
+table = client.table("analysis_records")
+result = table.select("*").execute()
+```
+
+The client automatically uses the `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` environment variables.
+
+## JSONB fields
+
+JSONB fields provide flexibility for storing structured data while maintaining queryability:
+
+```python
+# Example tech_stack JSONB structure
+{
+    "languages": ["Python", "TypeScript"],
+    "frameworks": ["FastAPI", "React"],
+    "databases": ["PostgreSQL"],
+    "tools": ["Docker", "GitHub Actions"],
+    "package_managers": ["uv", "npm"],
+    "versions": {"python": "3.11", "node": "18"}
+}
+
+# Example risks_and_gaps JSONB structure
+[
+    {
+        "category": "security",
+        "severity": "high",
+        "title": "Missing Input Validation",
+        "description": "API endpoints lack request validation",
+        "impact": "Potential security vulnerabilities",
+        "recommendation": "Add Pydantic models for all endpoints"
+    }
+]
+```
+
+## Running migrations
+
+1. Open the Supabase SQL Editor
+2. Copy the contents of `backend/migrations/001_create_analysis_records.sql`
+3. Execute the SQL
+4. Repeat for any additional migrations
+
+<Warning>
+  Migration 001 includes a `DROP TABLE` statement. Only run this in development or when you're prepared to lose existing data.
+</Warning>

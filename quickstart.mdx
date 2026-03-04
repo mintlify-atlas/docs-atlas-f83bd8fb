@@ -1,80 +1,304 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get Neutrino running locally in under 5 minutes with backend API, Streamlit UI, and React frontend
 ---
 
-## Get started in three steps
+Get Neutrino running locally with both the backend API and frontend dashboard. This guide walks through environment setup, dependency installation, and running all services.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before starting, ensure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- **Python 3.11+** with [uv](https://github.com/astral-sh/uv) package manager
+- **Node.js 18+** and npm
+- **Supabase account** (for database and pgvector)
+- **OpenRouter API key** (for LLM access)
+- **Serper API key** (optional, for trend data collection)
 
-### Step 2: Deploy your changes
+## Environment setup
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+Neutrino requires three environment variables to function. Create a `.env` file in the project root:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```env
+# Required: Database connection
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+# Required: LLM access (supports up to 4 keys for rotation)
+OPENROUTER_API_KEY_1=sk-or-v1-xxx
+OPENROUTER_API_KEY_2=sk-or-v1-xxx  # Optional
+OPENROUTER_API_KEY_3=sk-or-v1-xxx  # Optional
+OPENROUTER_API_KEY_4=sk-or-v1-xxx  # Optional
 
-### Step 3: Go live
+# Optional: Trend intelligence
+SERPER_API_KEY=your-serper-api-key
+```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+<Note>
+API keys are rotated automatically when multiple keys are provided. This prevents rate limiting during high-volume analysis.
+</Note>
+
+## Backend setup
+
+<Steps>
+  <Step title="Navigate to backend directory">
+    ```bash
+    cd backend
+    ```
+  </Step>
+
+  <Step title="Install dependencies with uv">
+    ```bash
+    uv sync
+    ```
+
+    This installs all Python dependencies defined in `pyproject.toml` and creates a virtual environment.
+  </Step>
+
+  <Step title="Set up database schema">
+    Create the `analysis_records` table in Supabase:
+
+    1. Open the Supabase SQL Editor
+    2. Copy the migration from `backend/migrations/001_create_analysis_records.sql`
+    3. Execute the SQL to create the table with pgvector extension
+
+    The schema includes fields for tech stack, risks, recommendations, and trend data.
+  </Step>
+
+  <Step title="Start the FastAPI server">
+    ```bash
+    uv run uvicorn advisor.api.endpoints:app --reload --port 8000
+    ```
+
+    The API server will start at `http://localhost:8000` with auto-reload enabled for development.
+  </Step>
+
+  <Step title="(Optional) Start Streamlit UI">
+    In a separate terminal:
+
+    ```bash
+    cd backend
+    uv run streamlit run src/advisor/ui/app.py
+    ```
+
+    The Streamlit interface launches at `http://localhost:8501` and provides a simplified UI for repository analysis.
+  </Step>
+</Steps>
+
+<Info>
+The FastAPI server provides interactive API documentation at `http://localhost:8000/docs` powered by Swagger UI.
+</Info>
+
+## Frontend setup
+
+<Steps>
+  <Step title="Navigate to frontend directory">
+    ```bash
+    cd frontend
+    ```
+  </Step>
+
+  <Step title="Install npm dependencies">
+    ```bash
+    npm install
+    ```
+
+    This installs React 19, Vite, Tailwind CSS, Framer Motion, and other UI dependencies.
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+
+    The React application will launch at `http://localhost:5173` with hot module replacement.
+  </Step>
+</Steps>
+
+## Test the API
+
+Once the backend is running, test the `/analyze` endpoint with a real repository:
+
+<CodeGroup>
+```bash curl
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/astralks/lstm_from_scratch"
+  }'
+```
+
+```bash curl (Private Repo)
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/your-org/private-repo",
+    "access_token": "ghp_your_github_token"
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/analyze",
+    json={
+        "repo_url": "https://github.com/astralks/lstm_from_scratch"
+    }
+)
+
+result = response.json()
+print(f"Analysis ID: {result['analysis_id']}")
+print(f"Technical Summary: {result['technical_summary'][:200]}...")
+```
+
+```javascript JavaScript
+fetch('http://localhost:8000/analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    repo_url: 'https://github.com/astralks/lstm_from_scratch'
+  })
+})
+  .then(res => res.json())
+  .then(data => {
+    console.log('Analysis ID:', data.analysis_id);
+    console.log('Technical Summary:', data.technical_summary);
+  });
+```
+</CodeGroup>
+
+<Warning>
+GitHub access tokens for private repositories are **ephemeral** — they are used only for the request and never stored in the database.
+</Warning>
+
+## Expected response
+
+The `/analyze` endpoint returns a 202 Accepted response with the complete analysis:
+
+```json
+{
+  "success": true,
+  "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "Analysis completed successfully",
+  "repo_url": "https://github.com/astralks/lstm_from_scratch",
+  "model_used": "tngtech/deepseek-r1t-chimera:free",
+  "technical_summary": "Detailed technical analysis...",
+  "executive_summary": "Strategic business insights...",
+  "timeline": {
+    "total_duration_seconds": 47.3,
+    "phases": {
+      "github_fetch": { "duration_seconds": 3.2, "status": "completed" },
+      "tech_stack_extraction": { "duration_seconds": 0.1, "status": "completed" },
+      "trend_search": { "duration_seconds": 12.5, "status": "completed" },
+      "deep_review": { "duration_seconds": 31.5, "status": "completed" }
+    }
+  },
+  "api_call_timings": [
+    { "name": "rag_cache_hit:python", "duration_ms": 0 },
+    { "name": "fresh_collect:pytorch", "duration_ms": 8450 },
+    { "name": "backend_analysis", "duration_ms": 15200 }
+  ],
+  "trend_data": {
+    "context": "**python** (cached): Key Points: Python 3.12 released...",
+    "tags_searched": ["python", "pytorch", "numpy"]
+  }
+}
+```
+
+## Access points
+
+With all services running, you can access:
+
+<CardGroup cols={2}>
+  <Card title="React Frontend" icon="react" href="http://localhost:5173">
+    Modern dashboard with landing page, analysis interface, and report downloads
+  </Card>
+  <Card title="FastAPI Backend" icon="code" href="http://localhost:8000">
+    RESTful API with endpoints for analysis, retrieval, and report generation
+  </Card>
+  <Card title="API Documentation" icon="book" href="http://localhost:8000/docs">
+    Interactive Swagger UI for testing endpoints and viewing schemas
+  </Card>
+  <Card title="Streamlit UI" icon="chart-line" href="http://localhost:8501">
+    Legacy analysis interface with tabbed views and markdown downloads
+  </Card>
+</CardGroup>
+
+## Performance expectations
+
+Typical analysis times vary by repository size:
+
+- **Small repos** (< 50 files): 30-45 seconds
+- **Medium repos** (50-200 files): 45-60 seconds  
+- **Large repos** (200+ files): 60-90 seconds
+
+The timeline includes:
+- **GitHub fetch**: 2-5 seconds (strategic 3-pass file fetching)
+- **Tech stack extraction**: < 1 second (in-memory static analysis)
+- **Trend search**: 5-15 seconds (RAG cache hits are instant; misses trigger parallel web searches)
+- **Deep review**: 25-40 seconds (3 parallel AI calls with 128K context windows)
+
+<Tip>
+For faster results, ensure trend data is pre-cached. Run a batch collection script to populate the RAG store with common technologies before analyzing repositories.
+</Tip>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Architecture" icon="sitemap" href="/architecture">
+    Understand the flow from GitHub intake to parallel AI review
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/analyze">
+    Explore all available endpoints and request/response schemas
+  </Card>
+  <Card title="Development" icon="wrench" href="/development/overview">
+    Set up for contributing with tests, linting, and debugging
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/deployment/setup">
+    Deploy to production with Render, Vercel, or Docker
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Troubleshooting
+
+<Accordion title="Port already in use">
+  If port 8000 or 5173 is occupied, specify a different port:
+
+  ```bash
+  # Backend on port 8080
+  uv run uvicorn advisor.api.endpoints:app --reload --port 8080
+
+  # Frontend on port 3000
+  npm run dev -- --port 3000
+  ```
+</Accordion>
+
+<Accordion title="Missing environment variables">
+  If you see `ValidationError` on startup, ensure your `.env` file contains all required variables:
+
+  ```bash
+  # Check which variables are loaded
+  uv run python -c "from advisor.config import get_settings; print(get_settings())"
+  ```
+
+  The settings validator will show which variables are missing.
+</Accordion>
+
+<Accordion title="Database connection fails">
+  Verify your Supabase credentials:
+
+  1. Check that `SUPABASE_URL` matches your project URL
+  2. Use the **service role key**, not the anon key
+  3. Ensure the `analysis_records` table exists (run the migration)
+  4. Check that the pgvector extension is enabled in Supabase
+</Accordion>
+
+<Accordion title="Analysis times out or takes too long">
+  Several optimizations can reduce analysis time:
+
+  - **Reduce max files**: Edit `orchestrator.py` to fetch 150 files instead of 300
+  - **Cache trends**: Pre-populate the RAG store to avoid fresh searches
+  - **Use faster models**: Switch to a lower-latency model in `llm/models.py`
+  - **Increase API keys**: Add more OpenRouter keys for rotation (up to 4)
+</Accordion>

@@ -1,0 +1,193 @@
+---
+title: Setup
+description: Install and deploy Neutrino for local development and production environments
+---
+
+## Prerequisites
+
+- Python 3.11 or higher
+- Node.js 18 or higher
+- [uv](https://github.com/astral-sh/uv) package manager
+- Supabase account for database and storage
+- OpenRouter API key for LLM access
+
+## Local development
+
+### Backend setup
+
+1. Navigate to the backend directory:
+
+```bash
+cd backend
+```
+
+2. Install dependencies using uv:
+
+```bash
+uv sync
+```
+
+3. Install development dependencies:
+
+```bash
+uv sync --extra dev
+```
+
+4. Set up environment variables by creating a `.env` file (see [Environment variables](/deployment/environment-variables))
+
+5. Start the FastAPI server:
+
+```bash
+uv run uvicorn advisor.api.endpoints:app --reload --port 8000
+```
+
+The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
+
+### Frontend setup
+
+1. Navigate to the frontend directory:
+
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Start the development server:
+
+```bash
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173`.
+
+### Streamlit UI (optional)
+
+For the legacy Streamlit interface:
+
+```bash
+cd backend
+uv run streamlit run src/advisor/ui/app.py
+```
+
+The Streamlit UI will be available at `http://localhost:8501`.
+
+## Production deployment
+
+### Backend deployment on Render
+
+Neutrino includes a `render.yaml` configuration for deploying the API to Render:
+
+```yaml backend/render.yaml
+services:
+  - type: web
+    name: neutrino-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install .
+    startCommand: uvicorn advisor.api.endpoints:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY_1
+        sync: false
+      - key: OPENROUTER_API_KEY_2
+        sync: false
+      - key: OPENROUTER_API_KEY_3
+        sync: false
+      - key: OPENROUTER_API_KEY_4
+        sync: false
+      - key: SERPER_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+```
+
+To deploy:
+
+1. Connect your repository to Render
+2. Configure environment variables in the Render dashboard
+3. Deploy using the `render.yaml` blueprint
+
+### Frontend deployment on Vercel
+
+Neutrino includes a `vercel.json` configuration:
+
+```json frontend/vercel.json
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
+
+To deploy:
+
+1. Install the Vercel CLI: `npm i -g vercel`
+2. Run `vercel` in the frontend directory
+3. Follow the prompts to deploy
+
+## Running tests
+
+### Backend tests
+
+```bash
+cd backend
+
+# Run all unit tests (fast, no network)
+uv run pytest tests/ --ignore=tests/test_integration.py -v
+
+# Run integration tests (uses real GitHub + LLM)
+uv run pytest tests/test_integration.py -v -s
+
+# Run all tests with coverage
+uv run pytest tests/ --cov=advisor --cov-report=html
+```
+
+The test suite includes 49 unit tests and 11 integration tests for a total of 60 tests.
+
+### Frontend tests
+
+```bash
+cd frontend
+npm run lint
+```
+
+## Build for production
+
+### Backend
+
+```bash
+cd backend
+pip install .
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+The production build will be output to the `dist` directory. Preview it with:
+
+```bash
+npm run preview
+```

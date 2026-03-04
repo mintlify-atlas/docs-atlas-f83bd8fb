@@ -1,0 +1,524 @@
+---
+title: Report generation
+description: AI-powered report synthesis with RAG context awareness, parallel generation, and downloadable outputs
+---
+
+The report generation system transforms raw code analysis findings into polished technical and executive summaries. It uses an intelligent agent that queries historical data, enriches findings with trend context, and generates targeted reports in parallel.
+
+## Report agent architecture
+
+The `ReportAgent` acts as an autonomous agent with context awareness through RAG access.
+
+From backend/src/advisor/analysis/core/report_agent.py:1-11:
+
+```python
+"""
+AI agent that intelligently builds analysis reports.
+
+Acts as an agent that:
+1. Queries RAG for historical analysis data on the repo's tech stack
+2. Combines current findings with historical context
+3. Decides what to emphasize based on trends and past analyses
+4. Generates targeted technical + executive reports in parallel
+
+Replaces dumb "dump everything into a prompt" with an agent
+that has context awareness through RAG.
+"""
+```
+
+<Note>
+The agent approach enables context-aware reports that reference historical patterns and adapt emphasis based on trend data.
+</Note>
+
+## Report types
+
+The system generates two distinct report formats optimized for different audiences:
+
+<CardGroup cols={2}>
+  <Card title="Technical summary" icon="code">
+    **Audience:** Engineers and architects
+    
+    **Focus:**
+    - Architecture patterns and code organization
+    - Technology stack details with versions
+    - Code quality observations
+    - Technical debt and risks with file references
+    - Specific improvement recommendations
+    
+    **Tone:** Detailed, technical, references files/modules
+  </Card>
+
+  <Card title="Executive summary" icon="briefcase">
+    **Audience:** Business leaders and product managers
+    
+    **Focus:**
+    - Business model and value proposition
+    - Feature capabilities and differentiation
+    - Development velocity and maintainability
+    - Investment areas and time/cost savings
+    - Competitive positioning
+    
+    **Tone:** Strategic, business-focused, no jargon
+  </Card>
+</CardGroup>
+
+## Report generation workflow
+
+The agent follows a 3-step process to generate reports:
+
+<Steps>
+  <Step title="Gather RAG context">
+    Query Supabase pgvector for historical insights on detected technologies
+  </Step>
+  
+  <Step title="Build enriched findings">
+    Combine backend/frontend/infrastructure findings with trend and historical context
+  </Step>
+  
+  <Step title="Generate reports in parallel">
+    Use two LLM calls simultaneously to generate both technical and executive reports
+  </Step>
+</Steps>
+
+### Implementation
+
+From backend/src/advisor/analysis/core/report_agent.py:39-110:
+
+```python
+async def generate_reports(
+    self,
+    repo_name: str,
+    backend_findings: str,
+    frontend_findings: str,
+    infra_findings: str,
+    trend_context: str = "",
+    tech_tags: list[str] | None = None,
+) -> tuple[str, str, str]:
+    """Generate technical + executive reports using RAG context.
+    
+    Returns:
+        Tuple of (technical_report, executive_report, model_used).
+    """
+    # Step 1: Gather RAG context for historical insights
+    rag_context = await self._fetch_rag_context(tech_tags or [])
+    
+    # Step 2: Build enriched findings
+    enriched = self._build_enriched_findings(
+        backend_findings, frontend_findings, infra_findings,
+        trend_context, rag_context,
+    )
+    
+    # Step 3: Generate both reports in parallel
+    tech_prompt = AGGREGATED_TECHNICAL_PROMPT.format(
+        repo_name=repo_name, findings=enriched,
+    )
+    exec_prompt = AGGREGATED_EXECUTIVE_PROMPT.format(
+        repo_name=repo_name, findings=enriched,
+    )
+    
+    tech_result, exec_result = await asyncio.gather(
+        self._llm.complete(
+            prompt=tech_prompt,
+            system_prompt=(
+                "Senior architect. Synthesize findings into a comprehensive "
+                "technical report. Reference files only — no code fixes. "
+                "Use historical RAG context to identify recurring patterns."
+            ),
+            temperature=0.2,
+            max_tokens=16000,
+        ),
+        self._llm.complete(
+            prompt=exec_prompt,
+            system_prompt=(
+                "Technology strategist. Translate findings into business "
+                "insights: feature improvements, time/cost savings. No jargon. "
+                "Use historical context to show progress over time."
+            ),
+            temperature=0.2,
+            max_tokens=16000,
+        ),
+    )
+    
+    return (
+        tech_result["content"],
+        exec_result["content"],
+        tech_result["model"],
+    )
+```
+
+<Tip>
+Parallel generation reduces total report time by ~50% compared to sequential generation.
+</Tip>
+
+## Historical context via RAG
+
+The agent queries stored trend insights to provide historical context:
+
+```python
+async def _fetch_rag_context(self, tags: list[str]) -> str:
+    """Query RAG for historical insights on the tech stack.
+    
+    Queries all tags in parallel for maximum speed.
+    Returns formatted context string with past analysis data.
+    """
+    rag = self._get_rag()
+    if not rag or not tags:
+        return ""
+    
+    async def _query_tag(tag: str) -> list[str]:
+        """Query a single tag and format results."""
+        results_text = []
+        try:
+            results = await rag.search_by_tag(tag, limit=2)
+            for r in results:
+                if hasattr(r, "key_points") and r.key_points:
+                    points = "; ".join(r.key_points[:3])
+                    collected = getattr(r, "collected_at", "unknown")
+                    momentum = getattr(r, "momentum", "")
+                    line = f"- **{tag}** ({collected}): {points}"
+                    if momentum:
+                        line += f" [momentum: {momentum}]"
+                    results_text.append(line)
+        except Exception as e:
+            logger.debug(f"RAG lookup failed for '{tag}': {e}")
+        return results_text
+    
+    # Parallel RAG lookups for all tags
+    tag_results = await asyncio.gather(
+        *[_query_tag(t) for t in tags[:8]]
+    )
+    insights = [line for result in tag_results for line in result]
+    
+    if insights:
+        return (
+            "## Historical RAG Context\n"
+            "Past analyses and trend data for this tech stack:\n"
+            + "\n".join(insights)
+        )
+    return ""
+```
+
+### Example RAG context
+
+```markdown
+## Historical RAG Context
+Past analyses and trend data for this tech stack:
+- **react** (2024-03-01): React 18.3 released with performance improvements; Suspense adoption growing; Server Components gaining traction [momentum: growing]
+- **fastapi** (2024-02-28): FastAPI 0.110 adds WebSocket improvements; Adoption rising in ML/AI space; Strong performance vs alternatives [momentum: growing]
+- **postgresql** (2024-03-02): PostgreSQL 16.2 released; Improved JSON performance; pgvector gaining traction for embeddings [momentum: stable]
+```
+
+## Enriched findings structure
+
+The agent combines multiple data sources into a structured prompt:
+
+```python
+def _build_enriched_findings(
+    self,
+    backend: str,
+    frontend: str,
+    infra: str,
+    trends: str,
+    rag_context: str,
+) -> str:
+    """Combine all sources into enriched findings for the LLM."""
+    sections = [
+        f"# BACKEND ANALYSIS (FULL CODE)\n{backend or 'No backend files.'}",
+        f"# FRONTEND ANALYSIS (SIGNATURES)\n{frontend or 'No frontend files.'}",
+        f"# INFRASTRUCTURE ANALYSIS (SIGNATURES)\n{infra or 'No infra files.'}",
+    ]
+    
+    if trends:
+        sections.append(
+            f"# TECHNOLOGY TREND INTELLIGENCE\n"
+            f"Use this data to assess version freshness, competitive risks, and upgrade opportunities.\n\n"
+            f"{trends}"
+        )
+    
+    if rag_context:
+        sections.append(f"# HISTORICAL CONTEXT (FROM RAG)\n{rag_context}")
+    
+    return "\n\n".join(sections)
+```
+
+<Accordion title="Example enriched findings">
+```markdown
+# BACKEND ANALYSIS (FULL CODE)
+FastAPI 0.109.0 application with:
+- 15 API endpoints in src/api/routes/
+- Pydantic v2 schemas in src/models/
+- SQLAlchemy async ORM with PostgreSQL
+- JWT authentication via jose
+...
+
+# FRONTEND ANALYSIS (SIGNATURES)
+Next.js 14 App Router structure:
+- app/dashboard/page.tsx: Dashboard component
+- components/ui/: Shadcn components
+- lib/api.ts: API client with error handling
+...
+
+# INFRASTRUCTURE ANALYSIS (SIGNATURES)
+Docker Compose setup:
+- docker-compose.yml: 3 services (api, db, redis)
+- .github/workflows/ci.yml: GitHub Actions CI
+- Dockerfile: Multi-stage build
+...
+
+# TECHNOLOGY TREND INTELLIGENCE
+**fastapi**: Latest 0.110.0 released March 2024. Growing adoption in ML/AI space. Performance improvements over Flask/Django.
+**next.js**: Version 14.1 stable. App Router adoption increasing. React Server Components ready for production.
+**postgresql**: Version 16.2 current. pgvector popular for embeddings. JSON performance improved.
+
+# HISTORICAL CONTEXT (FROM RAG)
+- **fastapi** (2024-02-28): Version 0.110 adds WebSocket improvements; Adoption rising; Strong performance [momentum: growing]
+```
+</Accordion>
+
+## Streamlit UI integration
+
+The Streamlit interface provides download functionality for generated reports.
+
+### Download buttons
+
+From backend/src/advisor/ui/app.py:178-197:
+
+```python
+tab1, tab2 = st.tabs(["👨‍💻 Technical View", "👔 Executive View"])
+
+with tab1:
+    st.subheader("Technical Summary")
+    technical_summary = result.get("technical_summary", "No summary available")
+    st.markdown(technical_summary)
+    
+    st.download_button(
+        label="📥 Download Technical Report",
+        data=generate_markdown_report(result, "technical"),
+        file_name=f"technical_report_{get_timestamp()}.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+
+with tab2:
+    st.subheader("Executive Summary")
+    executive_summary = result.get("executive_summary", "No summary available")
+    st.markdown(executive_summary)
+    
+    st.download_button(
+        label="📥 Download Executive Report",
+        data=generate_markdown_report(result, "executive"),
+        file_name=f"executive_report_{get_timestamp()}.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+```
+
+### Report formatting
+
+Reports are generated as Markdown files with metadata:
+
+```python
+def generate_markdown_report(result: dict, report_type: str) -> str:
+    """Generate a downloadable markdown report."""
+    repo_url = result.get("repo_url", "Unknown Repository")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    if report_type == "technical":
+        summary = result.get("technical_summary", "No summary available")
+        title = "Technical Analysis Report"
+    else:
+        summary = result.get("executive_summary", "No summary available")
+        title = "Executive Intelligence Brief"
+    
+    report = f"""# {title}
+
+**Repository:** {repo_url}
+**Generated:** {timestamp}
+**Model:** {result.get('model_used', 'Unknown')}
+
+---
+
+{summary}
+
+---
+
+*Generated by AI Development Advisor*
+"""
+    return report
+```
+
+### Tab interface
+
+The UI displays both reports with timeline and trend intelligence:
+
+```python
+tab1, tab2, tab3, tab4 = st.tabs([
+    "👨‍💻 Technical View",
+    "👔 Executive View",
+    "⏱️ Analysis Timeline",
+    "🔮 Trend Intelligence",
+])
+```
+
+<Frame>
+  <img src="/images/ui-tabs.png" alt="Streamlit UI showing report tabs" />
+</Frame>
+
+## LLM configuration
+
+The agent uses specific system prompts and parameters for each report type:
+
+<Tabs>
+  <Tab title="Technical report">
+    ```python
+    system_prompt = (
+        "Senior architect. Synthesize findings into a comprehensive "
+        "technical report. Reference files only — no code fixes. "
+        "Use historical RAG context to identify recurring patterns."
+    )
+    temperature = 0.2
+    max_tokens = 16000
+    ```
+    
+    **Output style:**
+    - File and module references
+    - Technical terminology
+    - Architecture diagrams (text-based)
+    - Code patterns and anti-patterns
+    - Specific line number references
+  </Tab>
+
+  <Tab title="Executive report">
+    ```python
+    system_prompt = (
+        "Technology strategist. Translate findings into business "
+        "insights: feature improvements, time/cost savings. No jargon. "
+        "Use historical context to show progress over time."
+    )
+    temperature = 0.2
+    max_tokens = 16000
+    ```
+    
+    **Output style:**
+    - Business impact focus
+    - ROI and cost estimates
+    - Risk mitigation strategies
+    - Competitive positioning
+    - Timeline and resource projections
+  </Tab>
+</Tabs>
+
+<Warning>
+Both reports use low temperature (0.2) for consistency and factual accuracy. Higher temperatures may introduce hallucinations.
+</Warning>
+
+## Performance optimization
+
+The agent uses several techniques to optimize report generation:
+
+<AccordionGroup>
+  <Accordion title="Parallel LLM calls">
+    Both reports are generated simultaneously using `asyncio.gather`, reducing total time by ~50%.
+    
+    ```python
+    tech_result, exec_result = await asyncio.gather(
+        llm.complete(tech_prompt, ...),
+        llm.complete(exec_prompt, ...),
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="Lazy RAG loading">
+    The RAG store is only initialized when needed, avoiding import errors in environments without Supabase.
+    
+    ```python
+    def _get_rag(self):
+        if self._rag is None:
+            try:
+                from advisor.trends.rag_store import RAGStore
+                self._rag = RAGStore()
+            except Exception as e:
+                logger.warning(f"RAG not available: {e}")
+        return self._rag
+    ```
+  </Accordion>
+
+  <Accordion title="Parallel RAG queries">
+    All technology tags are queried simultaneously for historical context.
+    
+    ```python
+    tag_results = await asyncio.gather(
+        *[_query_tag(t) for t in tags[:8]]
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="Context size limits">
+    RAG results are limited to top 2 per tag, and only 8 tags are queried to stay within token budgets.
+    
+    ```python
+    results = await rag.search_by_tag(tag, limit=2)
+    tag_results = await asyncio.gather(
+        *[_query_tag(t) for t in tags[:8]]
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## API reference
+
+### ReportAgent
+
+```python
+from advisor.analysis.core.report_agent import ReportAgent
+from advisor.llm.client import OpenRouterClient
+
+llm = OpenRouterClient()
+agent = ReportAgent(llm)
+
+technical, executive, model = await agent.generate_reports(
+    repo_name="owner/repo",
+    backend_findings="FastAPI app with 15 endpoints...",
+    frontend_findings="Next.js 14 with App Router...",
+    infra_findings="Docker Compose with 3 services...",
+    trend_context="React 18.3 released; FastAPI 0.110...",
+    tech_tags=["react", "fastapi", "postgresql"],
+)
+
+print(f"Technical Report:\n{technical}\n")
+print(f"Executive Report:\n{executive}\n")
+print(f"Model: {model}")
+```
+
+### Standalone usage
+
+```python
+# Use without the full orchestrator
+from advisor.analysis.core.report_agent import ReportAgent
+
+agent = ReportAgent()
+
+# Generate reports from any findings
+tech, exec, model = await agent.generate_reports(
+    repo_name="my-project",
+    backend_findings="Your analysis here...",
+    frontend_findings="More analysis...",
+    infra_findings="Infrastructure details...",
+)
+```
+
+### Streamlit download
+
+```python
+import streamlit as st
+
+# Display with download button
+st.markdown(technical_summary)
+
+st.download_button(
+    label="📥 Download Report",
+    data=technical_summary,
+    file_name="report.md",
+    mime="text/markdown",
+)
+```

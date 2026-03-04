@@ -1,0 +1,145 @@
+---
+title: List analyses
+description: List recent repository analyses
+---
+
+## GET /analyses
+
+Retrieve a list of recent repository analyses.
+
+This endpoint returns the most recent analyses stored in the database, ordered by creation time (newest first).
+
+## Request
+
+<ParamField query="limit" type="number" default="20">
+  Maximum number of analyses to return.
+  
+  Must be a positive integer. Defaults to 20 if not specified.
+</ParamField>
+
+### Request example
+
+```bash
+curl https://api.neutrino.example.com/analyses
+```
+
+With limit parameter:
+
+```bash
+curl https://api.neutrino.example.com/analyses?limit=50
+```
+
+## Response
+
+Status code: `200 OK`
+
+<ResponseField name="analyses" type="array" required>
+  Array of `AnalysisRecord` objects. Each record contains the complete analysis data as described in the [Get analysis](/api/get-analysis) endpoint.
+  
+  Ordered by creation time, newest first.
+</ResponseField>
+
+<ResponseField name="count" type="number" required>
+  Total number of analyses returned in this response.
+</ResponseField>
+
+### Response example
+
+```json
+{
+  "analyses": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "repo_url": "https://github.com/octocat/Hello-World",
+      "repo_name": "octocat/Hello-World",
+      "analyzed_at": "2026-03-04T10:00:00Z",
+      "model_used": "claude-3-5-sonnet-20241022",
+      "tech_stack": {
+        "languages": ["Python", "TypeScript"],
+        "frameworks": ["FastAPI", "React"],
+        "databases": ["PostgreSQL"],
+        "tools": ["Docker"],
+        "package_managers": ["poetry", "npm"],
+        "versions": {}
+      },
+      "architecture_patterns": [],
+      "risks_and_gaps": [],
+      "recommendations": [],
+      "features": [],
+      "business_model": null,
+      "integrations": [],
+      "technical_summary": "# Technical Analysis...",
+      "executive_summary": "# Executive Summary...",
+      "analysis_duration_ms": 90000,
+      "file_count": 342,
+      "files_analyzed": 156,
+      "token_usage": {},
+      "timeline": null,
+      "trend_data": null,
+      "created_at": "2026-03-04T10:01:30Z",
+      "updated_at": "2026-03-04T10:01:30Z"
+    },
+    {
+      "id": "234e5678-e89b-12d3-a456-426614174001",
+      "repo_url": "https://github.com/example/another-repo",
+      "repo_name": "example/another-repo",
+      "analyzed_at": "2026-03-03T15:30:00Z",
+      "model_used": "claude-3-5-sonnet-20241022",
+      "tech_stack": {
+        "languages": ["JavaScript"],
+        "frameworks": ["Express"],
+        "databases": ["MongoDB"],
+        "tools": [],
+        "package_managers": ["npm"],
+        "versions": {}
+      },
+      "architecture_patterns": [],
+      "risks_and_gaps": [],
+      "recommendations": [],
+      "features": [],
+      "business_model": null,
+      "integrations": [],
+      "technical_summary": "# Technical Analysis...",
+      "executive_summary": "# Executive Summary...",
+      "analysis_duration_ms": 65000,
+      "file_count": 189,
+      "files_analyzed": 92,
+      "token_usage": {},
+      "timeline": null,
+      "trend_data": null,
+      "created_at": "2026-03-03T15:31:05Z",
+      "updated_at": "2026-03-03T15:31:05Z"
+    }
+  ],
+  "count": 2
+}
+```
+
+### Empty response
+
+When no analyses are found:
+
+```json
+{
+  "analyses": [],
+  "count": 0
+}
+```
+
+## Error responses
+
+### 500 Internal Server Error
+
+Returned when there is a database error:
+
+```json
+{
+  "detail": "Failed to list analyses: Database connection error"
+}
+```
+
+## Notes
+
+- If the database table does not exist, the endpoint returns an empty list instead of an error
+- Results are always ordered by creation time (newest first)
+- Each analysis record in the array contains the full data structure as returned by the [Get analysis](/api/get-analysis) endpoint

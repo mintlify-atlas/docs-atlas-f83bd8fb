@@ -1,0 +1,57 @@
+---
+title: Risk item
+description: Individual risk or gap identified in the codebase
+---
+
+The `RiskItem` model represents a specific risk, vulnerability, or gap identified during codebase analysis.
+
+## Fields
+
+<ResponseField name="category" type="string" required>
+  Category of the risk. Common values include:
+  
+  - `security` - Security vulnerabilities or concerns
+  - `maintainability` - Code maintainability issues
+  - `scalability` - Scalability limitations
+  - `performance` - Performance bottlenecks
+  - `reliability` - Reliability or stability concerns
+  - `compliance` - Compliance or regulatory issues
+</ResponseField>
+
+<ResponseField name="severity" type="string" required>
+  Severity level of the risk. Valid values:
+  
+  - `low` - Minor issue with minimal impact
+  - `medium` - Moderate issue requiring attention
+  - `high` - Serious issue requiring prompt action
+  - `critical` - Critical issue requiring immediate attention
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Brief title summarizing the risk.
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Detailed description of the risk or gap.
+</ResponseField>
+
+<ResponseField name="impact" type="string" required>
+  Description of the potential impact if the risk is not addressed.
+</ResponseField>
+
+<ResponseField name="recommendation" type="string" required>
+  Recommended actions to mitigate or resolve the risk.
+</ResponseField>
+
+## Example
+
+```json
+{
+  "category": "security",
+  "severity": "high",
+  "title": "Missing input validation on API endpoints",
+  "description": "Several API endpoints accept user input without proper validation, potentially exposing the application to injection attacks.",
+  "impact": "Attackers could exploit unvalidated inputs to perform SQL injection, command injection, or other malicious activities, compromising data integrity and system security.",
+  "recommendation": "Implement comprehensive input validation using Pydantic models for all API endpoints. Add rate limiting and sanitization for user-provided data."
+}
+```
