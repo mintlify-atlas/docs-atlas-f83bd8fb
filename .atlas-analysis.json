@@ -1,0 +1,101 @@
+{
+  "projectType": "saas",
+  "projectName": "Neutrino",
+  "projectDescription": "AI-powered development advisor that analyzes GitHub repositories and generates technical and executive intelligence reports.",
+  "theme": "palm",
+  "primaryColor": "#5571b0",
+  "lightColor": "#1c7484",
+  "darkColor": "#0e1014",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/analysis-engine",
+              "features/trend-intelligence",
+              "features/report-generation",
+              "features/rag-system"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/setup",
+              "deployment/configuration",
+              "deployment/database",
+              "deployment/environment-variables"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/overview",
+              "api/analyze",
+              "api/get-analysis",
+              "api/list-analyses"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/models/analysis-record",
+              "api/models/tech-stack",
+              "api/models/risk-item",
+              "api/models/recommendation"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/overview",
+              "development/testing",
+              "development/code-structure"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered GitHub repository analysis",
+    "Technical and executive summary generation",
+    "RAG-based trend intelligence with pgvector",
+    "Parallel LLM processing with multi-key rotation",
+    "Stack detection and architecture analysis",
+    "Risk assessment and recommendations",
+    "FastAPI backend with Streamlit and React frontends",
+    "Supabase database integration"
+  ],
+  "publicApiSurface": [
+    "POST /analyze - Analyze a GitHub repository",
+    "GET /analysis/{id} - Get stored analysis by ID",
+    "GET /analyses - List recent analyses",
+    "GET /health - API health check",
+    "AnalysisOrchestrator.analyze() - Main orchestration entry point",
+    "GitHubClient.get_repo_metadata() - Fetch repository metadata",
+    "OpenRouterClient.complete() - LLM completion with multi-key rotation",
+    "TrendMaster.enrich_with_trends() - Trend intelligence enrichment",
+    "RAGManager.retrieve_trends() - Vector similarity search"
+  ]
+}
